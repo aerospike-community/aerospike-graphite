@@ -19,7 +19,7 @@
 
 __author__ = "Aerospike"
 __copyright__ = "Copyright 2013 Aerospike"
-__version__ = "1.4.1"
+__version__ = "1.4.2"
 
 # Modules
 import argparse
