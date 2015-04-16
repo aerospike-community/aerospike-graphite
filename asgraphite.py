@@ -276,6 +276,11 @@ parser.add_argument("-p"
 					, required=True
 					, help="REQUIRED: PORT for Graphite server")
 
+parser.add_argument("--prefix"
+					, dest="graphite_prefix"
+					, default='instances.citrusleaf.'
+                                        , help="Prefix used when sending metrics to Graphite server (default: %(default)s)")
+
 parser.add_argument("-i"
 					, "--info-port"
 					, dest="info_port"
@@ -343,7 +348,7 @@ CITRUSLEAF_SERVER = args.base_node
 CITRUSLEAF_PORT = args.info_port
 CITRUSLEAF_XDR_PORT = args.xdr_port
 CITRUSLEAF_SERVER_ID = socket.gethostname()
-GRAPHITE_PATH_PREFIX = 'instances.citrusleaf.' + CITRUSLEAF_SERVER_ID
+GRAPHITE_PATH_PREFIX = args.graphite_prefix + CITRUSLEAF_SERVER_ID
 INTERVAL = 30
 
 class clGraphiteDaemon(Daemon):
