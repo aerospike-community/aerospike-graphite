@@ -323,7 +323,7 @@ user = None
 password = None
 
 if args.user != None:
-	user = args.User
+	user = args.user
 	if args.password == "prompt":
 		args.password = getpass.getpass("Enter Password:")
 	password = citrusleaf.hashpassword(args.password)
