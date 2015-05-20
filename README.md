@@ -26,7 +26,7 @@ Options:
                         REQUIRED: PORT for Graphite server
   --prefix GRAPHITE_PREFIX
                         Prefix used when sending metrics to Graphite server
-                        (default: instances.citrusleaf.)
+                        (default: instances.aerospike.)
   -i INFO_PORT, --info-port=INFO_PORT
                         PORT for Aerospike server [default: 3000]
   -r XDR_PORT, --xdr-port=XDR_PORT
