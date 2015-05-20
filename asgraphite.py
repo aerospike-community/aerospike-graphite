@@ -201,17 +201,17 @@ class Daemon:
 ####
 # Usage :
 # ## To send just the latency information to Graphite
-# python citrusleaf_graphite.py -l 'latency:back=70;duration=60' --start -g s1 -p 2023
+# python asgraphite.py -l 'latency:back=70;duration=60' --start -g s1 -p 2023
 # ## To send just 1 namespace stats to Graphite, for multiple namespaces, start accordingly
-# python citrusleaf_graphite.py -n --start -g s1 -p 2023
+# python asgraphite.py -n --start -g s1 -p 2023
 # ## To send just the statistics information to Graphite
-# python citrusleaf_graphite.py --start -g s1 -p 2023
+# python asgraphite.py --start -g s1 -p 2023
 # ## To send sets info to Graphite
-# python citrusleaf_graphite.py -s --start -g s1 -p 2023
+# python asgraphite.py -s --start -g s1 -p 2023
 # ## To send XDR statistics to Graphite
-# python citrusleaf_graphite.py -x --start -g s1 -p 2023
+# python asgraphite.py -x --start -g s1 -p 2023
 # ## To Stop the Daemon
-#  python citrusleaf_graphite.py --stop
+#  python asgraphite.py --stop
 ####
 
 parser = argparse.ArgumentParser()
@@ -278,7 +278,7 @@ parser.add_argument("-p"
 
 parser.add_argument("--prefix"
 					, dest="graphite_prefix"
-					, default='instances.citrusleaf.'
+					, default='instances.aerospike.'
                                         , help="Prefix used when sending metrics to Graphite server (default: %(default)s)")
 
 parser.add_argument("-i"
@@ -316,7 +316,7 @@ args = parser.parse_args()
 try:
 	import citrusleaf
 except:
-	raise Exception, "unable to load Citrusleaf/Aerospike library"
+	raise Exception, "unable to load Aerospike/Aerospike library"
 	sys.exit(-1)
 
 user = None
@@ -344,11 +344,11 @@ if not args.stop:
 		parser.print_help()
 		sys.exit(2)
 
-CITRUSLEAF_SERVER = args.base_node
-CITRUSLEAF_PORT = args.info_port
-CITRUSLEAF_XDR_PORT = args.xdr_port
-CITRUSLEAF_SERVER_ID = socket.gethostname()
-GRAPHITE_PATH_PREFIX = args.graphite_prefix + CITRUSLEAF_SERVER_ID
+AEROSPIKE_SERVER = args.base_node
+AEROSPIKE_PORT = args.info_port
+AEROSPIKE_XDR_PORT = args.xdr_port
+AEROSPIKE_SERVER_ID = socket.gethostname()
+GRAPHITE_PATH_PREFIX = args.graphite_prefix + AEROSPIKE_SERVER_ID
 INTERVAL = 30
 
 class clGraphiteDaemon(Daemon):
@@ -373,7 +373,7 @@ class clGraphiteDaemon(Daemon):
 		while True:
 			msg = []
 			now = int(time.time())
-			r = citrusleaf.citrusleaf_info(CITRUSLEAF_SERVER, CITRUSLEAF_PORT, 'statistics', user, password)
+			r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, 'statistics', user, password)
 			if (-1 != r):
 				lines = []
 				for string in r.split(';'):
@@ -392,7 +392,7 @@ class clGraphiteDaemon(Daemon):
 			if args.sets:
 				r = -1
 				try:
-					r = citrusleaf.citrusleaf_info(CITRUSLEAF_SERVER, CITRUSLEAF_PORT, 'sets', user, password)
+					r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, 'sets', user, password)
 				except:
 					pass
 				if (-1 != r):
@@ -412,12 +412,12 @@ class clGraphiteDaemon(Daemon):
 				r = -1
 				if args.latency.startswith('latency:'):
 					try:
-						r = citrusleaf.citrusleaf_info(CITRUSLEAF_SERVER, CITRUSLEAF_PORT, args.latency, user, password)
+						r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, args.latency, user, password)
 					except:
 						pass
 				else:
 					try:
-						r = citrusleaf.citrusleaf_info(CITRUSLEAF_SERVER, CITRUSLEAF_PORT, 'latency:', user, password)
+						r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, 'latency:', user, password)
 					except:
 						pass
 
@@ -448,7 +448,7 @@ class clGraphiteDaemon(Daemon):
 			if args.namespace:
 				r = -1
 				try:
-					r = citrusleaf.citrusleaf_info(CITRUSLEAF_SERVER, CITRUSLEAF_PORT, 'namespaces', user, password)
+					r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, 'namespaces', user, password)
 				except:
 					pass
 
@@ -458,7 +458,7 @@ class clGraphiteDaemon(Daemon):
 						for namespace in namespaces:
 							r = -1
 							try:
-								r = citrusleaf.citrusleaf_info(CITRUSLEAF_SERVER, CITRUSLEAF_PORT, 'namespace/' + namespace, user, password)
+								r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, 'namespace/' + namespace, user, password)
 							except:
 								pass
 							if (-1 != r):
@@ -473,7 +473,7 @@ class clGraphiteDaemon(Daemon):
 			if args.xdr:
 				r = -1
 				try:
-					r = citrusleaf.citrusleaf_info(CITRUSLEAF_SERVER, CITRUSLEAF_XDR_PORT, 'statistics', user, password)
+					r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_XDR_PORT, 'statistics', user, password)
 				except:
 					pass
 				if (-1 != r):
@@ -501,7 +501,7 @@ class clGraphiteDaemon(Daemon):
 			if args.sindex:
 				r = -1
 				try:
-					r = citrusleaf.citrusleaf_info(CITRUSLEAF_SERVER, CITRUSLEAF_PORT, 'sindex', user, password)
+					r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, 'sindex', user, password)
 				except:
 					pass
 				if (-1 != r):
@@ -527,7 +527,7 @@ class clGraphiteDaemon(Daemon):
 
 								r = -1
 								try:
-									r = citrusleaf.citrusleaf_info(CITRUSLEAF_SERVER, CITRUSLEAF_PORT, 'sindex/' + index["ns"] + '/' + index["indexname"], user, password)
+									r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, 'sindex/' + index["ns"] + '/' + index["indexname"], user, password)
 								except:
 									pass
 								if (-1 != r):
