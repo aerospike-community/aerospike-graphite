@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright 2013-2014 Aerospike, Inc.
+# Copyright 2013-2016 Aerospike, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@
 
 
 __author__ = "Aerospike"
-__copyright__ = "Copyright 2013 Aerospike"
-__version__ = "1.4.2"
+__copyright__ = "Copyright 2016 Aerospike"
+__version__ = "1.5.0"
 
 # Modules
 import argparse
@@ -240,6 +240,11 @@ parser.add_argument("--restart"
 					, action="store_true"
 					, dest="restart"
 					, help="Restart the Daemon")
+parser.add_argument("-v"
+					, "--verbose"
+					, action="store_true"
+					, dest="verbose"
+					, help="Enable verbose logging")
 
 parser.add_argument("-n"
 					, "--namespace"
@@ -279,7 +284,7 @@ parser.add_argument("-p"
 parser.add_argument("--prefix"
 					, dest="graphite_prefix"
 					, default='instances.aerospike.'
-                                        , help="Prefix used when sending metrics to Graphite server (default: %(default)s)")
+					, help="Prefix used when sending metrics to Graphite server (default: %(default)s)")
 
 parser.add_argument("-i"
 					, "--info-port"
@@ -314,7 +319,7 @@ parser.add_argument("-d"
 args = parser.parse_args()
 
 try:
-	import citrusleaf
+	import aerospike
 except:
 	raise Exception, "unable to load Aerospike/Aerospike library"
 	sys.exit(-1)
@@ -326,7 +331,7 @@ if args.user != None:
 	user = args.user
 	if args.password == "prompt":
 		args.password = getpass.getpass("Enter Password:")
-	password = citrusleaf.hashpassword(args.password)
+	password = args.password
 
 # Configurable parameters
 LOGFILE = args.log_file
@@ -369,12 +374,14 @@ class clGraphiteDaemon(Daemon):
 	def run(self):
 		s = self.connect()
 		print "Aerospike-Graphite connector started: ", time.asctime(time.localtime())
-
+		config = { 'hosts' : [ (AEROSPIKE_SERVER, AEROSPIKE_PORT) ] }
 		while True:
 			msg = []
 			now = int(time.time())
-			r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, 'statistics', user, password)
+			client = aerospike.client(config).connect([user,password])
+			r = client.info_node('statistics',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 			if (-1 != r):
+				r = r.split('\t')[1]
 				lines = []
 				for string in r.split(';'):
 					if string == "":
@@ -392,10 +399,11 @@ class clGraphiteDaemon(Daemon):
 			if args.sets:
 				r = -1
 				try:
-					r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, 'sets', user, password)
+					r = client.info_node('sets',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 				except:
 					pass
 				if (-1 != r):
+					r = r.split('\t')[1].strip()
 					lines = []
 					for string in r.split(';'):
 						if len(string) == 0:
@@ -412,16 +420,17 @@ class clGraphiteDaemon(Daemon):
 				r = -1
 				if args.latency.startswith('latency:'):
 					try:
-						r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, args.latency, user, password)
+						r = client.info_node(args.latency,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 					except:
 						pass
 				else:
 					try:
-						r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, 'latency:', user, password)
+						r = client.info_node('latency:',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 					except:
 						pass
 
 				if (-1 != r) and not (r.startswith('error')):
+					r = r.split('\t')[1].strip()
 					lines = []
 					latency_type = ""
 					header = []
@@ -448,20 +457,22 @@ class clGraphiteDaemon(Daemon):
 			if args.namespace:
 				r = -1
 				try:
-					r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, 'namespaces', user, password)
+					r = client.info_node('namespaces',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 				except:
 					pass
 
 				if (-1 != r):
+					r = r.split('\t')[1].strip()
 					namespaces = filter(None, r.split(';'))
 					if len(namespaces) > 0:
 						for namespace in namespaces:
 							r = -1
 							try:
-								r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, 'namespace/' + namespace, user, password)
+								r = client.info_node('namespace' + namespace ,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 							except:
 								pass
 							if (-1 != r):
+								r = r.split('\t')[1].strip()
 								lines = []
 								for string in r.split(';'):
 									name, value = string.split('=')
@@ -473,10 +484,11 @@ class clGraphiteDaemon(Daemon):
 			if args.xdr:
 				r = -1
 				try:
-					r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_XDR_PORT, 'statistics', user, password)
+					r = client.info_node('statistics',(AEROSPIKE_SERVER,AEROSPIKE_XDR_PORT))
 				except:
 					pass
 				if (-1 != r):
+					r = r.split('\t')[1].strip()
 					lines = []
 					for string in r.split(';'):
 						if string == "":
@@ -501,10 +513,11 @@ class clGraphiteDaemon(Daemon):
 			if args.sindex:
 				r = -1
 				try:
-					r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, 'sindex', user, password)
+					r = client.info_node('sindex',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 				except:
 					pass
 				if (-1 != r):
+					r = r.split('\t')[1].strip()
 					indexes = filter(None, r)
 					if len(indexes) > 0:
 						lines = []
@@ -527,10 +540,11 @@ class clGraphiteDaemon(Daemon):
 
 								r = -1
 								try:
-									r = citrusleaf.citrusleaf_info(AEROSPIKE_SERVER, AEROSPIKE_PORT, 'sindex/' + index["ns"] + '/' + index["indexname"], user, password)
+									r = client.info_node('sindex/' + index["ns"] + '/' + index["indexname"],(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 								except:
 									pass
 								if (-1 != r):
+									r = r.split('\t')[1].strip()
 									for string in r.split(';'):
 										name, value = string.split('=')
 										value = value.replace('false', "0")
@@ -569,6 +583,8 @@ class clGraphiteDaemon(Daemon):
 					line += f + ' '
 				nmsg += line + '\n'
 			try:
+				if args.verbose:
+					print nmsg
 				s.sendall(nmsg)
 			except:
 				#Once the connection is broken, we need to reconnect
@@ -576,7 +592,7 @@ class clGraphiteDaemon(Daemon):
 				sys.stdout.flush()
 				s.close()
 				s = self.connect()
-
+			client.close()
 			time.sleep(INTERVAL)
 
 if __name__ == "__main__":

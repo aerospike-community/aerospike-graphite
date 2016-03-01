@@ -37,6 +37,7 @@ Options:
                         Log file for asgraphite [default:
                         /var/log/aerospike/asgraphite.log]
   -d, --sindex          Gather sindex based statistics, default disabled (version 3.1.6+)
+  -v, --verbose			Enable additional output in the logs
 ```
 
 For example, to start <strong>asgraphite</strong> daemon, you might issue a command like this:
