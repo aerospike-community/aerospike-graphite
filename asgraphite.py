@@ -208,7 +208,7 @@ class Daemon:
 # python asgraphite.py --start -g s1 -p 2023
 # ## To send sets info to Graphite
 # python asgraphite.py -s --start -g s1 -p 2023
-# ## To send XDR statistics to Graphite
+# ## To send XDR DC statistics to Graphite
 # python asgraphite.py -x --start -g s1 -p 2023
 # ## To Stop the Daemon
 #  python asgraphite.py --stop
@@ -265,9 +265,10 @@ parser.add_argument("-l"
 
 parser.add_argument("-x"
 					, "--xdr"
-					, action="store_true"
-					, dest="xdr"
-					, help="Gather XDR statistics")
+					, nargs='+'
+					, action='append'
+					, dest="dc"
+					, help="Gather XDR datacenter statistics")
 
 parser.add_argument("-g"
 					, "--graphite"
@@ -291,12 +292,6 @@ parser.add_argument("-i"
 					, dest="info_port"
 					, default=3000
 					, help="PORT for Aerospike server (default: %(default)s)")
-
-parser.add_argument("-r"
-					, "--xdr-port"
-					, dest="xdr_port"
-					, default=3004
-					, help="PORT for XDR server(default: %(default)s)")
 
 parser.add_argument("-b"
 					, "--base-node"
@@ -351,8 +346,8 @@ if not args.stop:
 
 AEROSPIKE_SERVER = args.base_node
 AEROSPIKE_PORT = args.info_port
-AEROSPIKE_XDR_PORT = args.xdr_port
 AEROSPIKE_SERVER_ID = socket.gethostname()
+AEROSPIKE_XDR_DCS = args.dc
 GRAPHITE_PATH_PREFIX = args.graphite_prefix + AEROSPIKE_SERVER_ID
 INTERVAL = 30
 
@@ -481,27 +476,30 @@ class clGraphiteDaemon(Daemon):
 									lines.append(GRAPHITE_PATH_PREFIX + "." + namespace + ".%s %s %s" % (name, value, now))
 							msg.extend(lines)
 
-			if args.xdr:
+			if args.dc:
 				r = -1
-				try:
-					r = client.info_node('statistics',(AEROSPIKE_SERVER,AEROSPIKE_XDR_PORT))
-				except:
-					pass
-				if (-1 != r):
-					r = r.split('\t')[1].strip()
-					lines = []
-					for string in r.split(';'):
-						if string == "":
-							continue
+				# Flatten the list
+				DCS = [ item for sublist in AEROSPIKE_XDR_DCS for item in sublist]
+				for DC in DCS:
+					try:
+						r = client.info_node('dc/' + DC ,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+					except:
+						pass
+					if (-1 != r):
+						r = r.split('\t')[1].strip()
+						lines = []
+						for string in r.split(';'):
+							if string == "":
+								continue
 
-						if string.count('=') > 1:
-							continue
+							if string.count('=') > 1:
+								continue
 
-						name, value = string.split('=')
-						value = value.replace('false', "0")
-						value = value.replace('true', "1")
-						lines.append("%s.xdr.%s %s %s" % (GRAPHITE_PATH_PREFIX, name, value, now))
-					msg.extend(lines)
+							name, value = string.split('=')
+							value = value.replace('false', "0")
+							value = value.replace('true', "1")
+							lines.append("%s.xdr.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, DC, name, value, now))
+						msg.extend(lines)
 
 ##	Logic to export SIndex Stats to Graphite
 ##	Since Graphite understands numbers we have used substitutes as below

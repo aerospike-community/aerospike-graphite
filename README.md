@@ -19,7 +19,8 @@ Options:
   -l LATENCY, --latency=LATENCY
                         Enable latency statistics and specify query (IE.
                         latency:back=70;duration=60)
-  -x, --xdr             Gather XDR statistics, default disabled
+  -x DC [DC ...], --xdr DC [DC ...]
+                        Gather XDR datacenter statistics (Enterprise 3.7.4+)
   -g GRAPHITE_SERVER, --graphite=GRAPHITE_SERVER
                         REQUIRED: IP for Graphite server
   -p GRAPHITE_PORT, --graphite-port=GRAPHITE_PORT
@@ -29,8 +30,6 @@ Options:
                         (default: instances.aerospike.)
   -i INFO_PORT, --info-port=INFO_PORT
                         PORT for Aerospike server [default: 3000]
-  -r XDR_PORT, --xdr-port=XDR_PORT
-                        PORT for XDR server [default: 3004]
   -b BASE_NODE, --base-node=BASE_NODE
                         Base host for collecting stats [default: 127.0.0.1]
   -f LOG_FILE, --log-file=LOG_FILE
@@ -62,7 +61,9 @@ $ python /opt/aerospike/bin/asgraphite --start -g <graphite_host> -p <graphite_p
 $ python /opt/aerospike/bin/asgraphite -s --start -g <graphite_host> -p <graphite_port>
 
 #  To send XDR statistics to Graphite
-$ python /opt/aerospike/bin/asgraphite -x --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -x datacenter1 [dc2 dc3 ...] --start -g <graphite_host> -p <graphite_port>
+or
+$ python /opt/aerospike/bin/asgraphite -x datacenter1 [-x datacenter 2 -x datacenter3 ...] --start -g <graphite_host> -p <graphite_port>
 
 #  To send SIndex statistics to Graphite
 $ python /opt/aerospike/bin/asgraphite -d --start -g <graphite_host> -p <graphite_port>
@@ -80,3 +81,4 @@ monitoring after a server restart.
 ## Dependencies
 - python 2.6+
 - argparse
+- aerospike
