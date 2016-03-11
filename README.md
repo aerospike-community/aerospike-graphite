@@ -19,8 +19,8 @@ Options:
   -l LATENCY, --latency=LATENCY
                         Enable latency statistics and specify query (IE.
                         latency:back=70;duration=60)
-  -U, --user            The username (Enterprise)
-  -P, --password        Password, will prompt if empty. (Enterprise)
+  -U USER, --user USER            The username (Enterprise)
+  -P [PASSWORD], --password [PASSWORD]       Password, will prompt if empty. (Enterprise)
   -x DC [DC ...], --xdr DC [DC ...]
                         Gather XDR datacenter statistics (Enterprise 3.7.4+)
   -g GRAPHITE_SERVER, --graphite=GRAPHITE_SERVER
