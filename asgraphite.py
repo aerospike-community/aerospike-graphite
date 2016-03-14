@@ -374,7 +374,7 @@ class clGraphiteDaemon(Daemon):
 		while True:
 			msg = []
 			now = int(time.time())
-			client = aerospike.client(config).connect([user,password])
+			client = aerospike.client(config).connect(user,password)
 			r = client.info_node('statistics',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 			if (-1 != r):
 				r = r.split('\t')[1]
