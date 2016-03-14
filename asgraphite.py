@@ -161,6 +161,7 @@ class Daemon:
 			self.pidfile.unlock()
 			sys.exit("Daemon already running.")
 
+		print "Starting asgraphite daemon"
 		# Start the daemon
 		self.daemonize()
 		self.pidfile.unlock()
@@ -274,13 +275,11 @@ parser.add_argument("-x"
 parser.add_argument("-g"
 					, "--graphite"
 					, dest="graphite_server"
-					, required=True
 					, help="REQUIRED: IP for Graphite server")
 
 parser.add_argument("-p"
 					, "--graphite-port"
 					, dest="graphite_port"
-					, required=True
 					, help="REQUIRED: PORT for Graphite server")
 
 parser.add_argument("--prefix"
@@ -306,7 +305,7 @@ parser.add_argument("-f"
 					, default='/var/log/aerospike/asgraphite.log'
 					, help="Logfile for asgraphite (default: %(default)s)")
 
-parser.add_argument("-d"
+parser.add_argument("-si"
 					, "--sindex"
 					, action="store_true"
 					, dest="sindex"
@@ -337,13 +336,13 @@ if not args.stop:
 		GRAPHITE_SERVER = args.graphite_server
 	else:
 		parser.print_help()
-		sys.exit(2)
+		sys.exit(200)
 
 	if args.graphite_port:
 		GRAPHITE_PORT = int(args.graphite_port)
 	else:
 		parser.print_help()
-		sys.exit(2)
+		sys.exit(3)
 
 AEROSPIKE_SERVER = args.base_node
 AEROSPIKE_PORT = args.info_port
@@ -464,7 +463,7 @@ class clGraphiteDaemon(Daemon):
 						for namespace in namespaces:
 							r = -1
 							try:
-								r = client.info_node('namespace' + namespace ,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+								r = client.info_node('namespace/' + namespace ,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 							except:
 								pass
 							if (-1 != r):
@@ -606,8 +605,8 @@ if __name__ == "__main__":
 			daemon.restart()
 		else:
 			print "Unknown command"
-			sys.exit(2)
+			sys.exit(20)
 		sys.exit(0)
 	else:
 		parser.print_help()
-		sys.exit(2)
+		sys.exit(22)
