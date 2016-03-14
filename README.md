@@ -21,8 +21,6 @@ Options:
                         latency:back=70;duration=60)
   -U USER, --user USER            The username (Enterprise)
   -P [PASSWORD], --password [PASSWORD]       Password, will prompt if empty. (Enterprise)
-  -x DC [DC ...], --xdr DC [DC ...]
-                        Gather XDR datacenter statistics (Enterprise 3.7.4+)
   -g GRAPHITE_SERVER, --graphite=GRAPHITE_SERVER
                         REQUIRED: IP for Graphite server
   -p GRAPHITE_PORT, --graphite-port=GRAPHITE_PORT
@@ -37,7 +35,7 @@ Options:
   -f LOG_FILE, --log-file=LOG_FILE
                         Log file for asgraphite [default:
                         /var/log/aerospike/asgraphite.log]
-  -d, --sindex          Gather sindex based statistics, default disabled (version 3.1.6+)
+  -si, --sindex          Gather sindex based statistics, default disabled (version 3.1.6+)
   -v, --verbose			Enable additional output in the logs
 ```
 
@@ -49,12 +47,12 @@ Usage :
 #  To send just the (using defaults) latency information to Graphite
 $ python /opt/aerospike/bin/asgraphite -l 'latency:' --start -g <graphite_host> -p <graphite_port>
 
-#  To send the latency information of custom duration to Graphite.
-#  This would go back 70 seconds and send latency, set and namespace data to the Graphite server for 60 seconds worth of data.
-$ python /opt/aerospike/bin/asgraphite -l 'latency:back=70;duration=60' --start -g <graphite_host> -p <graphite_port>
-
 #  To send namespace stats to Graphite
 $ python /opt/aerospike/bin/asgraphite -n --start -g <graphite_host> -p <graphite_port>
+
+#  To send the latency information of custom duration to Graphite.
+#  This would go back 70 seconds and send latency, set and namespace data to the Graphite server for 60 seconds worth of data.
+$ python /opt/aerospike/bin/asgraphite -n -l 'latency:back=70;duration=60' --start -g <graphite_host> -p <graphite_port>
 
 #  To send just the statistics information to Graphite
 $ python /opt/aerospike/bin/asgraphite --start -g <graphite_host> -p <graphite_port>
@@ -68,10 +66,10 @@ or
 $ python /opt/aerospike/bin/asgraphite -x datacenter1 [-x datacenter 2 -x datacenter3 ...] --start -g <graphite_host> -p <graphite_port>
 
 #  To send SIndex statistics to Graphite
-$ python /opt/aerospike/bin/asgraphite -d --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -si --start -g <graphite_host> -p <graphite_port>
 
 # You can use multiple options in a single command
-$ python /opt/aerospike/bin/asgraphite -x -d -l 'latency:' --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -si -l 'latency:' --start -g <graphite_host> -p <graphite_port>
 
 #  To Stop the Daemon
 $ python /opt/aerospike/bin/asgraphite --stop
