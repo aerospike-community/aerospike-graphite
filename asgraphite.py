@@ -161,7 +161,6 @@ class Daemon:
 			self.pidfile.unlock()
 			sys.exit("Daemon already running.")
 
-		print "Starting asgraphite daemon"
 		# Start the daemon
 		self.daemonize()
 		self.pidfile.unlock()
@@ -367,13 +366,19 @@ class clGraphiteDaemon(Daemon):
 		return s
 
 	def run(self):
+		print "Starting asgraphite daemon" , time.asctime(time.localtime())
 		s = self.connect()
 		print "Aerospike-Graphite connector started: ", time.asctime(time.localtime())
 		config = { 'hosts' : [ (AEROSPIKE_SERVER, AEROSPIKE_PORT) ] }
 		while True:
 			msg = []
 			now = int(time.time())
-			client = aerospike.client(config).connect(user,password)
+			try:
+				client = aerospike.client(config).connect(user,password)
+			except:
+				print "Unable to connect to aerospike"
+				time.sleep(INTERVAL)
+				continue
 			r = client.info_node('statistics',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 			if (-1 != r):
 				r = r.split('\t')[1]
