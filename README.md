@@ -21,6 +21,8 @@ Options:
                         latency:back=70;duration=60)
   -U USER, --user USER            The username (Enterprise)
   -P [PASSWORD], --password [PASSWORD]       Password, will prompt if empty. (Enterprise)
+  -x DC [DC ...], --xdr DC [DC ...]
+                        Gather XDR datacenter statistics (Enterprise 3.8+)
   -g GRAPHITE_SERVER, --graphite=GRAPHITE_SERVER
                         REQUIRED: IP for Graphite server
   -p GRAPHITE_PORT, --graphite-port=GRAPHITE_PORT
