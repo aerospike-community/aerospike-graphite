@@ -19,11 +19,12 @@
 
 __author__ = "Aerospike"
 __copyright__ = "Copyright 2016 Aerospike"
-__version__ = "1.5.0"
+__version__ = "1.5.3"
 
 # Modules
 import argparse
 import getpass
+import re
 import sys
 import time
 import socket
@@ -435,11 +436,15 @@ class clGraphiteDaemon(Daemon):
 					latency_type = ""
 					header = []
 					for string in r.split(';'):
-						if len(string) == 0:
+						if len(string) == 0 or string.startswith("error"):
 							continue
 						if len(latency_type) == 0:
 							# Base case
 							latency_type, rest = string.split(':', 1)
+							# handle dynamic naming
+							match = re.match('{(.*)}',latency_type)
+							latency_type = re.sub('{.*}-','',latency_type)
+							latency_type = match.groups()[0]+'.'+latency_type
 							header = rest.split(',')
 						else:
 							val = string.split(',')
@@ -503,6 +508,10 @@ class clGraphiteDaemon(Daemon):
 							name, value = string.split('=')
 							value = value.replace('false', "0")
 							value = value.replace('true', "1")
+							value = value.replace('INACTIVE',"0")
+							value = value.replace('CLUSTER_DOWN',"1")
+							value = value.replace('CLUSTER_UP',"2")
+							value = value.replace('WINDOW_SHIPPER',"3")
 							lines.append("%s.xdr.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, DC, name, value, now))
 						msg.extend(lines)
 
