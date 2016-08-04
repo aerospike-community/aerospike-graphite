@@ -36,6 +36,7 @@ import sys, os, time, atexit
 from signal import SIGTERM
 import fcntl
 import subprocess
+from re import sub
 
 
 class Pidfile(object):
@@ -347,7 +348,7 @@ if not args.stop:
 CITRUSLEAF_SERVER = args.base_node
 CITRUSLEAF_PORT = args.info_port
 CITRUSLEAF_XDR_PORT = args.xdr_port
-CITRUSLEAF_SERVER_ID = socket.gethostname()
+CITRUSLEAF_SERVER_ID = sub('\..*','',socket.gethostname())
 GRAPHITE_PATH_PREFIX = args.graphite_prefix + CITRUSLEAF_SERVER_ID
 INTERVAL = 30
 
