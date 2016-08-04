@@ -38,6 +38,7 @@ import sys, os, time, atexit
 from signal import SIGTERM
 import fcntl
 import subprocess
+from re import sub
 
 
 class Pidfile(object):
@@ -410,8 +411,8 @@ class clGraphiteDaemon(Daemon):
 						if len(string) == 0:
 							continue
 						setList = string.split(':')
-						namespace = setList[0]
-						sets = setList[1]
+						namespace = setList[0].replace('ns_name=', '')
+						sets = setList[1].replace('set_name=', '')
 						for set_tuple in setList[2:]:
 							key, value = set_tuple.split('=')
 							lines.append("%s.sets.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, namespace, sets, key, value, now))
