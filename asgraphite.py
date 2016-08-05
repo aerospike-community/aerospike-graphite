@@ -410,11 +410,11 @@ class clGraphiteDaemon(Daemon):
 						if len(string) == 0:
 							continue
 						setList = string.split(':')
-						namespace = setList[0]
-						sets = setList[1]
+						namespace = setList[0].split('=')
+						sets = setList[1].split('=')
 						for set_tuple in setList[2:]:
 							key, value = set_tuple.split('=')
-							lines.append("%s.sets.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, namespace, sets, key, value, now))
+							lines.append("%s.sets.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, namespace[1], sets[1], key, value, now))
 					msg.extend(lines)
 
 			if args.latency:
