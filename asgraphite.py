@@ -376,11 +376,11 @@ class clGraphiteDaemon(Daemon):
 			now = int(time.time())
 			try:
 				client = aerospike.client(config).connect(user,password)
+				r = client.info_node('statistics',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 			except:
 				print "Unable to connect to aerospike"
 				time.sleep(INTERVAL)
 				continue
-			r = client.info_node('statistics',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 			if (-1 != r):
 				r = r.split('\t')[1]
 				lines = []
