@@ -282,6 +282,11 @@ parser.add_argument("-p"
 					, dest="graphite_port"
 					, help="REQUIRED: PORT for Graphite server")
 
+parser.add_argument("--interval"
+					, dest="graphite_interval"
+					, default=30
+					, help="How offten metrics are sent to graphite (seconds)")
+
 parser.add_argument("--prefix"
 					, dest="graphite_prefix"
 					, default='instances.aerospike.'
@@ -349,7 +354,7 @@ AEROSPIKE_PORT = args.info_port
 AEROSPIKE_SERVER_ID = socket.gethostname()
 AEROSPIKE_XDR_DCS = args.dc
 GRAPHITE_PATH_PREFIX = args.graphite_prefix + AEROSPIKE_SERVER_ID
-INTERVAL = 30
+INTERVAL = int(args.graphite_interval)
 
 class clGraphiteDaemon(Daemon):
 	def connect(self):
