@@ -285,7 +285,7 @@ parser.add_argument("-p"
 parser.add_argument("--interval"
 					, dest="graphite_interval"
 					, default=30
-					, help="How offten metrics are sent to graphite (seconds)")
+					, help="How often metrics are sent to graphite (seconds)")
 
 parser.add_argument("--prefix"
 					, dest="graphite_prefix"
