@@ -27,6 +27,8 @@ Options:
                         REQUIRED: IP for Graphite server
   -p GRAPHITE_PORT, --graphite-port=GRAPHITE_PORT
                         REQUIRED: PORT for Graphite server
+  --interval INTERVAL 
+                        How often metrics are sent to graphite in seconds [default: 30]
   --prefix GRAPHITE_PREFIX
                         Prefix used when sending metrics to Graphite server
                         (default: instances.aerospike.)
