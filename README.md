@@ -84,5 +84,5 @@ monitoring after a server restart.
 
 ## Dependencies
 - python 2.6+
-- argparse
-- aerospike
+- python argparse
+- [Aerospike python client](http://www.aerospike.com/docs/client/python/install)
