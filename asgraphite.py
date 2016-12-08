@@ -321,7 +321,7 @@ args = parser.parse_args()
 try:
 	import aerospike
 except:
-	raise Exception, "unable to load Aerospike/Aerospike library"
+	print "Unable to load Aerospike/Aerospike library, is the python client installed? (sudo pip install aerospike)"
 	sys.exit(-1)
 
 user = None
