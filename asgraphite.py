@@ -375,6 +375,7 @@ class clGraphiteDaemon(Daemon):
 		print "Starting asgraphite daemon" , time.asctime(time.localtime())
 		s = self.connect()
 		print "Aerospike-Graphite connector started: ", time.asctime(time.localtime())
+		sys.stdout.flush()
 		config = { 'hosts' : [ (AEROSPIKE_SERVER, AEROSPIKE_PORT) ] }
 		while True:
 			msg = []
@@ -384,191 +385,198 @@ class clGraphiteDaemon(Daemon):
 				r = client.info_node('statistics',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 			except:
 				print "Unable to connect to aerospike"
+				sys.stdout.flush()
 				time.sleep(INTERVAL)
 				continue
-			if (-1 != r):
-				r = r.split('\t')[1]
-				lines = []
-				for string in r.split(';'):
-					if string == "":
-						continue
-
-					if string.count('=') > 1:
-						continue
-
-					name, value = string.split('=')
-					value = value.replace('false', "0")
-					value = value.replace('true', "1")
-					lines.append("%s.service.%s %s %s" % (GRAPHITE_PATH_PREFIX, name, value, now))
-				msg.extend(lines)
-
-			if args.sets:
-				r = -1
-				try:
-					r = client.info_node('sets',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
-				except:
-					pass
+			try:
 				if (-1 != r):
 					r = r.split('\t')[1].strip()
 					lines = []
 					for string in r.split(';'):
-						if len(string) == 0:
+						if string == "":
 							continue
-						setList = string.split(':')
-						namespace = setList[0].split('=')
-						sets = setList[1].split('=')
-						for set_tuple in setList[2:]:
-							key, value = set_tuple.split('=')
-							lines.append("%s.sets.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, namespace[1], sets[1], key, value, now))
-					msg.extend(lines)
-
-			if args.latency:
-				r = -1
-				if args.latency.startswith('latency:'):
-					try:
-						r = client.info_node(args.latency,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
-					except:
-						pass
-				else:
-					try:
-						r = client.info_node('latency:',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
-					except:
-						pass
-
-				if (-1 != r) and not (r.startswith('error')):
-					r = r.split('\t')[1].strip()
-					lines = []
-					latency_type = ""
-					header = []
-					for string in r.split(';'):
-						if len(string) == 0 or string.startswith("error"):
+	
+						if string.count('=') > 1:
 							continue
-						if len(latency_type) == 0:
-							# Base case
-							latency_type, rest = string.split(':', 1)
-							# handle dynamic naming
-							match = re.match('{(.*)}',latency_type)
-							latency_type = re.sub('{.*}-','',latency_type)
-							latency_type = match.groups()[0]+'.'+latency_type
-							header = rest.split(',')
-						else:
-							val = string.split(',')
-							for i in range(1, len(header)):
-								name = latency_type + "." + header[i]
-								name = name.replace('>', 'over_')
-								name = name.replace('ops/sec', 'ops_per_sec')
-								value = val[i]
-								lines.append("%s.latency.%s %s %s" % (GRAPHITE_PATH_PREFIX , name, value, now))
-							# Reset base case
-							latency_type = ""
-							header = []
+	
+						name, value = string.split('=')
+						value = value.replace('false', "0")
+						value = value.replace('true', "1")
+						lines.append("%s.service.%s %s %s" % (GRAPHITE_PATH_PREFIX, name, value, now))
 					msg.extend(lines)
-
-			if args.namespace:
-				r = -1
-				try:
-					r = client.info_node('namespaces',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
-				except:
-					pass
-
-				if (-1 != r):
-					r = r.split('\t')[1].strip()
-					namespaces = filter(None, r.split(';'))
-					if len(namespaces) > 0:
-						for namespace in namespaces:
-							r = -1
-							try:
-								r = client.info_node('namespace/' + namespace ,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
-							except:
-								pass
-							if (-1 != r):
-								r = r.split('\t')[1].strip()
-								lines = []
-								for string in r.split(';'):
-									name, value = string.split('=')
-									value = value.replace('false', "0")
-									value = value.replace('true', "1")
-									lines.append(GRAPHITE_PATH_PREFIX + "." + namespace + ".%s %s %s" % (name, value, now))
-							msg.extend(lines)
-
-			if args.dc:
-				r = -1
-				# Flatten the list
-				DCS = [ item for sublist in AEROSPIKE_XDR_DCS for item in sublist]
-				for DC in DCS:
+	
+				if args.sets:
+					r = -1
 					try:
-						r = client.info_node('dc/' + DC ,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+						r = client.info_node('sets',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 					except:
 						pass
 					if (-1 != r):
 						r = r.split('\t')[1].strip()
 						lines = []
 						for string in r.split(';'):
-							if string == "":
+							if len(string) == 0:
 								continue
-
-							if string.count('=') > 1:
-								continue
-
-							name, value = string.split('=')
-							value = value.replace('false', "0")
-							value = value.replace('true', "1")
-							value = value.replace('INACTIVE',"0")
-							value = value.replace('CLUSTER_DOWN',"1")
-							value = value.replace('CLUSTER_UP',"2")
-							value = value.replace('WINDOW_SHIPPER',"3")
-							lines.append("%s.xdr.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, DC, name, value, now))
+							setList = string.split(':')
+							namespace = setList[0].split('=')
+							sets = setList[1].split('=')
+							for set_tuple in setList[2:]:
+								key, value = set_tuple.split('=')
+								lines.append("%s.sets.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, namespace[1], sets[1], key, value, now))
 						msg.extend(lines)
-
-##	Logic to export SIndex Stats to Graphite
-##	Since Graphite understands numbers we have used substitutes as below
-##	sync_state --
-##		synced = 1 & need_sync = 0
-##	state --
-##		RW = 1 & WO = 0
-
-			if args.sindex:
-				r = -1
-				try:
-					r = client.info_node('sindex',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
-				except:
-					pass
-				if (-1 != r):
-					r = r.split('\t')[1].strip()
-					indexes = filter(None, r)
-					if len(indexes) > 0:
+	
+				if args.latency:
+					r = -1
+					if args.latency.startswith('latency:'):
+						try:
+							r = client.info_node(args.latency,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+						except:
+							pass
+					else:
+						try:
+							r = client.info_node('latency:',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+						except:
+							pass
+	
+					if (-1 != r) and not (r.startswith('error')):
+						r = r.split('\t')[1].strip()
 						lines = []
-						for index_line in indexes.split(';'):
-							if len(index_line) > 0:
-								index = dict(item.split("=") for item in index_line.split(":"))
-
-								if (index["sync_state"] == "synced"):
-									index["sync_state"] = 1
-								elif (index["sync_state"] == "need_sync"):
-									index["sync_state"] = 0
-
-								if (index["state"] == "RW"):
-									index["state"] = 1
-								elif (index["state"] == "WO"):
-									index["state"] = 0
-
-								lines.append("%s.sindexes.%s.%s.sync_state %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], index["sync_state"], now))
-								lines.append("%s.sindexes.%s.%s.state %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], index["state"], now))
-
+						latency_type = ""
+						header = []
+						for string in r.split(';'):
+							if len(string) == 0 or string.startswith("error"):
+								continue
+							if len(latency_type) == 0:
+								# Base case
+								latency_type, rest = string.split(':', 1)
+								# handle dynamic naming
+								match = re.match('{(.*)}',latency_type)
+								latency_type = re.sub('{.*}-','',latency_type)
+								latency_type = match.groups()[0]+'.'+latency_type
+								header = rest.split(',')
+							else:
+								val = string.split(',')
+								for i in range(1, len(header)):
+									name = latency_type + "." + header[i]
+									name = name.replace('>', 'over_')
+									name = name.replace('ops/sec', 'ops_per_sec')
+									value = val[i]
+									lines.append("%s.latency.%s %s %s" % (GRAPHITE_PATH_PREFIX , name, value, now))
+								# Reset base case
+								latency_type = ""
+								header = []
+						msg.extend(lines)
+	
+				if args.namespace:
+					r = -1
+					try:
+						r = client.info_node('namespaces',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+					except:
+						pass
+	
+					if (-1 != r):
+						r = r.split('\t')[1].strip()
+						namespaces = filter(None, r.split(';'))
+						if len(namespaces) > 0:
+							for namespace in namespaces:
 								r = -1
 								try:
-									r = client.info_node('sindex/' + index["ns"] + '/' + index["indexname"],(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+									r = client.info_node('namespace/' + namespace ,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 								except:
 									pass
 								if (-1 != r):
 									r = r.split('\t')[1].strip()
+									lines = []
 									for string in r.split(';'):
 										name, value = string.split('=')
 										value = value.replace('false', "0")
 										value = value.replace('true', "1")
-										lines.append("%s.sindexes.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], name, value, now))
-						msg.extend(lines)
-
+										lines.append(GRAPHITE_PATH_PREFIX + "." + namespace + ".%s %s %s" % (name, value, now))
+								msg.extend(lines)
+	
+				if args.dc:
+					r = -1
+					# Flatten the list
+					DCS = [ item for sublist in AEROSPIKE_XDR_DCS for item in sublist]
+					for DC in DCS:
+						try:
+							r = client.info_node('dc/' + DC ,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+						except:
+							pass
+						if (-1 != r):
+							r = r.split('\t')[1].strip()
+							lines = []
+							for string in r.split(';'):
+								if string == "":
+									continue
+	
+								if string.count('=') > 1:
+									continue
+	
+								name, value = string.split('=')
+								value = value.replace('false', "0")
+								value = value.replace('true', "1")
+								value = value.replace('INACTIVE',"0")
+								value = value.replace('CLUSTER_DOWN',"1")
+								value = value.replace('CLUSTER_UP',"2")
+								value = value.replace('WINDOW_SHIPPER',"3")
+								lines.append("%s.xdr.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, DC, name, value, now))
+							msg.extend(lines)
+	
+	##	Logic to export SIndex Stats to Graphite
+	##	Since Graphite understands numbers we have used substitutes as below
+	##	sync_state --
+	##		synced = 1 & need_sync = 0
+	##	state --
+	##		RW = 1 & WO = 0
+	
+				if args.sindex:
+					r = -1
+					try:
+						r = client.info_node('sindex',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+					except:
+						pass
+					if (-1 != r):
+						r = r.split('\t')[1].strip()
+						indexes = filter(None, r)
+						if len(indexes) > 0:
+							lines = []
+							for index_line in indexes.split(';'):
+								if len(index_line) > 0:
+									index = dict(item.split("=") for item in index_line.split(":"))
+	
+									if (index["sync_state"] == "synced"):
+										index["sync_state"] = 1
+									elif (index["sync_state"] == "need_sync"):
+										index["sync_state"] = 0
+	
+									if (index["state"] == "RW"):
+										index["state"] = 1
+									elif (index["state"] == "WO"):
+										index["state"] = 0
+	
+									lines.append("%s.sindexes.%s.%s.sync_state %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], index["sync_state"], now))
+									lines.append("%s.sindexes.%s.%s.state %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], index["state"], now))
+	
+									r = -1
+									try:
+										r = client.info_node('sindex/' + index["ns"] + '/' + index["indexname"],(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+									except:
+										pass
+									if (-1 != r):
+										r = r.split('\t')[1].strip()
+										for string in r.split(';'):
+											name, value = string.split('=')
+											value = value.replace('false', "0")
+											value = value.replace('true', "1")
+											lines.append("%s.sindexes.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], name, value, now))
+							msg.extend(lines)
+			except:
+				print "Unknown response from Aerospike:"
+				print r
+				sys.stdout.flush()
+				time.sleep(INTERVAL)
+				continue
 			nmsg = ''
 			#AER-2098 move all non numeric values to numbers
 			#check if the val is a float (graphite uses float)
