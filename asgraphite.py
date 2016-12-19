@@ -404,13 +404,14 @@ class clGraphiteDaemon(Daemon):
 						value = value.replace('true', "1")
 						lines.append("%s.service.%s %s %s" % (GRAPHITE_PATH_PREFIX, name, value, now))
 					msg.extend(lines)
-	
-				if args.sets:
-					r = -1
-					try:
-						r = client.info_node('sets',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
-					except:
-						pass
+			except:
+				print "Unable to parse general stats:"
+				print r		# not combined with above line because 'r' could be int (-1) or string
+				sys.stdout.flush()
+			if args.sets:
+				r = -1
+				try:
+					r = client.info_node('sets',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 					if (-1 != r):
 						r = r.split('\t')[1].strip()
 						lines = []
@@ -424,20 +425,17 @@ class clGraphiteDaemon(Daemon):
 								key, value = set_tuple.split('=')
 								lines.append("%s.sets.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, namespace[1], sets[1], key, value, now))
 						msg.extend(lines)
-	
-				if args.latency:
-					r = -1
+				except:
+					print "Unable to parse set stats:"
+					print r
+					sys.stdout.flush()
+			if args.latency:
+				r = -1
+				try:
 					if args.latency.startswith('latency:'):
-						try:
-							r = client.info_node(args.latency,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
-						except:
-							pass
+						r = client.info_node(args.latency,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 					else:
-						try:
-							r = client.info_node('latency:',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
-						except:
-							pass
-	
+						r = client.info_node('latency:',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 					if (-1 != r) and not (r.startswith('error')):
 						r = r.split('\t')[1].strip()
 						lines = []
@@ -466,24 +464,23 @@ class clGraphiteDaemon(Daemon):
 								latency_type = ""
 								header = []
 						msg.extend(lines)
-	
-				if args.namespace:
-					r = -1
-					try:
-						r = client.info_node('namespaces',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
-					except:
-						pass
-	
+				except:
+					print "Unable to parse latency stats:"
+					print r
+					sys.stdout.flush()
+
+			if args.namespace:
+				r = -1
+				try:
+					r = client.info_node('namespaces',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+			
 					if (-1 != r):
 						r = r.split('\t')[1].strip()
 						namespaces = filter(None, r.split(';'))
 						if len(namespaces) > 0:
 							for namespace in namespaces:
 								r = -1
-								try:
-									r = client.info_node('namespace/' + namespace ,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
-								except:
-									pass
+								r = client.info_node('namespace/' + namespace ,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 								if (-1 != r):
 									r = r.split('\t')[1].strip()
 									lines = []
@@ -493,16 +490,18 @@ class clGraphiteDaemon(Daemon):
 										value = value.replace('true', "1")
 										lines.append(GRAPHITE_PATH_PREFIX + "." + namespace + ".%s %s %s" % (name, value, now))
 								msg.extend(lines)
+				except:
+					print "Unable to parse namespace list:"
+					print r
+					sys.stdout.flush()
 	
-				if args.dc:
-					r = -1
-					# Flatten the list
-					DCS = [ item for sublist in AEROSPIKE_XDR_DCS for item in sublist]
-					for DC in DCS:
-						try:
-							r = client.info_node('dc/' + DC ,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
-						except:
-							pass
+			if args.dc:
+				r = -1
+				# Flatten the list
+				DCS = [ item for sublist in AEROSPIKE_XDR_DCS for item in sublist]
+				for DC in DCS:
+					try:
+						r = client.info_node('dc/' + DC ,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 						if (-1 != r):
 							r = r.split('\t')[1].strip()
 							lines = []
@@ -522,6 +521,10 @@ class clGraphiteDaemon(Daemon):
 								value = value.replace('WINDOW_SHIPPER',"3")
 								lines.append("%s.xdr.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, DC, name, value, now))
 							msg.extend(lines)
+					except:
+						print "Unable to parse DC stats:"
+						print r
+						sys.stdout.flush()
 	
 	##	Logic to export SIndex Stats to Graphite
 	##	Since Graphite understands numbers we have used substitutes as below
@@ -530,12 +533,10 @@ class clGraphiteDaemon(Daemon):
 	##	state --
 	##		RW = 1 & WO = 0
 	
-				if args.sindex:
-					r = -1
-					try:
-						r = client.info_node('sindex',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
-					except:
-						pass
+			if args.sindex:
+				r = -1
+				try:
+					r = client.info_node('sindex',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
 					if (-1 != r):
 						r = r.split('\t')[1].strip()
 						indexes = filter(None, r)
@@ -571,12 +572,10 @@ class clGraphiteDaemon(Daemon):
 											value = value.replace('true', "1")
 											lines.append("%s.sindexes.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], name, value, now))
 							msg.extend(lines)
-			except:
-				print "Unknown response from Aerospike:"
-				print r
-				sys.stdout.flush()
-				time.sleep(INTERVAL)
-				continue
+				except:
+					print "Unable to parse sindex stats:"
+					print r
+					sys.stdout.flush()
 			nmsg = ''
 			#AER-2098 move all non numeric values to numbers
 			#check if the val is a float (graphite uses float)
