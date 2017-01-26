@@ -1,2 +1,7 @@
 argparse
-aerospike
+
+# if using auth
+#bcrypt
+
+# if using ssl/tls
+#pyOpenSSL

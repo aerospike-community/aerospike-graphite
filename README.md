@@ -5,6 +5,11 @@ This repositiory provides the asgraphite connector to connect Aerospike with Gra
 This script is included with the **aerospike-tools** package with is bundled
 with the server package and is installed into`/opt/aerospike/bin/asgraphite`.
 
+# Install
+```bash
+sudo pip install -r requirements.txt
+```
+
 # Usage
 ```bash
 $ python /opt/aerospike/bin/asgraphite --help
@@ -41,6 +46,32 @@ Options:
                         /var/log/aerospike/asgraphite.log]
   -si, --sindex          Gather sindex based statistics, default disabled (version 3.1.6+)
   -v, --verbose			Enable additional output in the logs
+  --tls_enable          Enable TLS
+  --tls_encrypt_only    TLS Encrypt Only
+  --tls_keyfile TLS_KEYFILE
+                        The private keyfile for your client TLS Cert
+  --tls_certfile TLS_CERTFILE
+                        The client TLS cert
+  --tls_cafile TLS_CAFILE
+                        The CA certificate for the server (if self-signed or
+                        not globally recognized)
+  --tls_capath TLS_CAPATH
+                        The path to a directory containing CRLs
+  --tls_protocols TLS_PROTOCOLS
+                        The TLS protocol to use. Available choices: SSLv2,
+                        SSLv3, TLSv1, TLSv1.1, TLSv1.2, all. An optional + or
+                        - can be appended before the protocol to indicate
+                        specific inclusion or exclusion.
+  --tls_blacklist TLS_BLACKLIST
+                        Blacklist including serial number of certs to revoke
+  --tls_ciphers TLS_CIPHERS
+                        Ciphers to include. See https://www.openssl.org/docs/m
+                        an1.0.1/apps/ciphers.html for cipher list format
+  --tls_crl             Checks SSL/TLS certs against vendor's Certificate
+                        Revocation Lists for revoked certificates. CRLs are
+                        found in path specified by --tls_capath
+  --tls_crlall          Check on all entries within the CRLs
+  --tls_name TLS_NAME   The expected name on the server side certificate
 ```
 
 For example, to start <strong>asgraphite</strong> daemon, you might issue a command like this:
@@ -84,5 +115,4 @@ monitoring after a server restart.
 
 ## Dependencies
 - python 2.6+
-- python argparse
-- [Aerospike python client](http://www.aerospike.com/docs/client/python/install)
+- python argparse, bcrypt (is using auth), pyOpenSSL (if using SSL/TLS)
