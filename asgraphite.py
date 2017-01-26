@@ -531,10 +531,10 @@ parser.add_argument("--tls_certfile"
 					, help="The client TLS cert")
 parser.add_argument("--tls_cafile"
 					, dest="tls_cafile"
-					, help="The CA certificate for the server (if self-signed or not globally recognized)")
+					, help="The CA for the server's certificate")
 parser.add_argument("--tls_capath"
 					, dest="tls_capath"
-					, help="The path to a directory containing CRLs")
+					, help="The path to a directory containing CA certs and/or CRLs")
 parser.add_argument("--tls_protocols"
 					, dest="tls_protocols"
 					, help="The TLS protocol to use. Available choices: SSLv2, SSLv3, TLSv1, TLSv1.1, TLSv1.2, all. An optional + or - can be appended before the protocol to indicate specific inclusion or exclusion.")
@@ -547,11 +547,11 @@ parser.add_argument("--tls_ciphers"
 parser.add_argument("--tls_crl"
 					, dest="tls_crl"
 					, action="store_true"
-					, help="Checks SSL/TLS certs against vendor's Certificate Revocation Lists for revoked certificates. CRLs are found in path specified by --tls_capath")
+					, help="Checks SSL/TLS certs against vendor's Certificate Revocation Lists for revoked certificates. CRLs are found in path specified by --tls_capath. Checks the leaf certificates only")
 parser.add_argument("--tls_crlall"
 					, dest="tls_crlall"
 					, action="store_true"
-					, help="Check on all entries within the CRLs")
+					, help="Check on all entries within the CRL chain")
 parser.add_argument("--tls_name"
 					, dest="tls_name"
 					, help="The expected name on the server side certificate")

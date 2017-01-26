@@ -44,8 +44,8 @@ Options:
   -f LOG_FILE, --log-file=LOG_FILE
                         Log file for asgraphite [default:
                         /var/log/aerospike/asgraphite.log]
-  -si, --sindex          Gather sindex based statistics, default disabled (version 3.1.6+)
-  -v, --verbose			Enable additional output in the logs
+  -si, --sindex         Gather sindex based statistics, default disabled (version 3.1.6+)
+  -v, --verbose         Enable additional output in the logs
   --tls_enable          Enable TLS
   --tls_encrypt_only    TLS Encrypt Only
   --tls_keyfile TLS_KEYFILE
@@ -53,10 +53,9 @@ Options:
   --tls_certfile TLS_CERTFILE
                         The client TLS cert
   --tls_cafile TLS_CAFILE
-                        The CA certificate for the server (if self-signed or
-                        not globally recognized)
+                        The CA for the server's cert.
   --tls_capath TLS_CAPATH
-                        The path to a directory containing CRLs
+                        The path to a directory containing CA certs and/or CRLs
   --tls_protocols TLS_PROTOCOLS
                         The TLS protocol to use. Available choices: SSLv2,
                         SSLv3, TLSv1, TLSv1.1, TLSv1.2, all. An optional + or
@@ -69,8 +68,9 @@ Options:
                         an1.0.1/apps/ciphers.html for cipher list format
   --tls_crl             Checks SSL/TLS certs against vendor's Certificate
                         Revocation Lists for revoked certificates. CRLs are
-                        found in path specified by --tls_capath
-  --tls_crlall          Check on all entries within the CRLs
+                        found in path specified by --tls_capath. Checks the leaf
+                        certificates only.
+  --tls_crlall          Check on all entries within the CRL chain.
   --tls_name TLS_NAME   The expected name on the server side certificate
 ```
 
@@ -108,6 +108,12 @@ $ python /opt/aerospike/bin/asgraphite -si -l 'latency:' --start -g <graphite_ho
 
 #  To Stop the Daemon
 $ python /opt/aerospike/bin/asgraphite --stop
+
+#  To run with SSL/TLS encrypt only
+$ python /opt/aerospike/bin/asgraphite -n --tls_enable --tls_encrypt_only true --start -g <graphite_host> -p <graphite_port>
+
+#  To run with SSL/TLS standard auth
+$ python /opt/aerospike/bin/asgraphite -n --tls_enable --tls_cafile /path/to/CA/root.pem --tls_name <server name on cert> --start -g <graphite_host> -p <graphite_port>
 ```
 
 Add the asgraphite monitoring commands to `/etc/rc.local` to automatically start
