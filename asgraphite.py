@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright 2013-2016 Aerospike, Inc.
+# Copyright 2013-2017 Aerospike, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@
 
 
 __author__ = "Aerospike"
-__copyright__ = "Copyright 2016 Aerospike"
-__version__ = "1.5.3"
+__copyright__ = "Copyright 2017 Aerospike"
+__version__ = "1.6.0"
 
 # Modules
 import argparse
@@ -28,10 +28,12 @@ import re
 import sys
 import time
 import socket
+import struct
+from ctypes import create_string_buffer
 
 # Custom module to Daemonize this script.
 ###########################################
-##           begin daemon.py
+##		   begin daemon.py
 ###########################################
 
 import sys, os, time, atexit
@@ -197,8 +199,203 @@ class Daemon:
 		"""
 
 ###########################################
-##           end daemon.py
+##		   end daemon.py
 ###########################################
+
+# =============================================================================
+#
+# Client
+#
+# -----------------------------------------------------------------------------
+
+STRUCT_PROTO = struct.Struct('! Q')
+STRUCT_AUTH = struct.Struct('! xxBB12x')
+STRUCT_FIELD = struct.Struct('! IB')
+
+MSG_VERSION = 0
+MSG_TYPE = 2
+AUTHENTICATE = 0
+USER = 0
+CREDENTIAL = 3
+SALT = "$2a$10$7EqJtq98hPqEX7fNZaFWoO"
+
+
+class ClientError(Exception):
+	pass
+
+
+class Client(object):
+
+	def __init__(self, addr, port, timeout=0.7):
+		self.addr = addr
+		self.port = port
+		self.timeout = timeout
+		self.sock = None
+
+	def connect(self, keyfile=None, certfile=None, ca_certs=None, ciphers=None, tls_enable=False, encrypt_only=False,
+		capath=None, protocols=None, cert_blacklist=None, crl_check=False, crl_check_all=False, tls_name=None):
+		s = None
+		for res in socket.getaddrinfo(self.addr, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM):
+			af, socktype, proto, canonname, sa = res
+			ssl_context = None
+			try:
+				s = socket.socket(af, socktype, proto)
+			except socket.error as msg:
+				s = None
+				continue
+			if tls_enable:
+				from ssl_context import SSLContext
+				from OpenSSL import SSL
+				ssl_context = SSLContext(enable_tls=tls_enable, encrypt_only=encrypt_only, cafile=ca_certs, capath=capath,
+					   keyfile=keyfile, certfile=certfile, protocols=protocols,
+					   cipher_suite=ciphers, cert_blacklist=cert_blacklist,
+					   crl_check=crl_check, crl_check_all=crl_check_all).ctx
+				s = SSL.Connection(ssl_context,s)
+			try:
+				s.connect(sa)
+				if ssl_context:
+					s.set_app_data(tls_name)
+					s.do_handshake()
+			except socket.error as msg:
+				s.close()
+				s = None
+				collectd.warning("Connect Error" % msg)
+				continue
+			break
+
+		if s is None:
+			raise ClientError(
+				"Could not connect to server at %s %s" % (self.addr, self.port))
+
+		self.sock = s
+		return self
+
+	def close(self):
+		if self.sock is not None:
+			self.sock.settimeout(None)
+			self.sock.close()
+			self.sock = None
+
+	def auth(self, username, password, timeout=None):
+
+		import bcrypt
+
+		credential = bcrypt.hashpw(password, SALT)
+
+		if timeout is None:
+			timeout = self.timeout
+
+		l = 8 + 16
+		l += 4 + 1 + len(username)
+		l += 4 + 1 + len(credential)
+
+		buf = create_string_buffer(l)
+		offset = 0
+
+		proto = (MSG_VERSION << 56) | (MSG_TYPE << 48) | (l - 8)
+		STRUCT_PROTO.pack_into(buf, offset, proto)
+		offset += STRUCT_PROTO.size
+
+		STRUCT_AUTH.pack_into(buf, offset, AUTHENTICATE, 2)
+		offset += STRUCT_AUTH.size
+
+		STRUCT_FIELD.pack_into(buf, offset, len(username) + 1, USER)
+		offset += STRUCT_FIELD.size
+		fmt = "! %ds" % len(username)
+		struct.pack_into(fmt, buf, offset, username)
+		offset += len(username)
+
+		STRUCT_FIELD.pack_into(buf, offset, len(credential) + 1, CREDENTIAL)
+		offset += STRUCT_FIELD.size
+		fmt = "! %ds" % len(credential)
+		struct.pack_into(fmt, buf, offset, credential)
+		offset += len(credential)
+
+		self.send(buf)
+
+		buf = self.recv(8, timeout)
+		rv = STRUCT_PROTO.unpack(buf)
+		proto = rv[0]
+		pvers = (proto >> 56) & 0xFF
+		ptype = (proto >> 48) & 0xFF
+		psize = (proto & 0xFFFFFFFFFFFF)
+
+		buf = self.recv(psize, timeout)
+		status = ord(buf[1])
+
+		if status != 0:
+			raise ClientError("Autentication Error %d for '%s' " %
+							  (status, username))
+
+	def send(self, data):
+		if self.sock:
+			try:
+				r = self.sock.sendall(data)
+			except IOError as e:
+				raise ClientError(e)
+			except socket.error as e:
+				raise ClientError(e)
+		else:
+			raise ClientError('socket not available')
+
+	def send_request(self, request, pvers=2, ptype=1):
+		if request:
+			request += '\n'
+		sz = len(request) + 8
+		buf = create_string_buffer(len(request) + 8)
+		offset = 0
+
+		proto = (pvers << 56) | (ptype << 48) | len(request)
+		STRUCT_PROTO.pack_into(buf, offset, proto)
+		offset = STRUCT_PROTO.size
+
+		fmt = "! %ds" % len(request)
+		struct.pack_into(fmt, buf, offset, request)
+		offset = offset + len(request)
+
+		self.send(buf)
+
+	def recv(self, sz, timeout):
+		out = ""
+		pos = 0
+		start_time = time.time()
+		while pos < sz:
+			buf = None
+			try:
+				buf = self.sock.recv(sz)
+			except IOError as e:
+				raise ClientError(e)
+			if pos == 0:
+				out = buf
+			else:
+				out += buf
+			pos += len(buf)
+			if timeout and time.time() - start_time > timeout:
+				raise ClientError(socket.timeout())
+		return out
+
+	def recv_response(self, timeout=None):
+		buf = self.recv(8, timeout)
+		rv = STRUCT_PROTO.unpack(buf)
+		proto = rv[0]
+		pvers = (proto >> 56) & 0xFF
+		ptype = (proto >> 48) & 0xFF
+		psize = (proto & 0xFFFFFFFFFFFF)
+
+		if psize > 0:
+			return self.recv(psize, timeout)
+		return ""
+
+	def info(self, request):
+		self.send_request(request)
+		res = self.recv_response(timeout=self.timeout)
+		out = re.split("\s+", res, maxsplit=1)
+		if len(out) == 2:
+			return out[1]
+		else:
+			raise ClientError("Failed to parse response: %s" % (res))
+
+
 
 ####
 # Usage :
@@ -316,13 +513,52 @@ parser.add_argument("-si"
 					, dest="sindex"
 					, help="Gather sindex based statistics")
 
-args = parser.parse_args()
+parser.add_argument("--tls_enable"
+					, action="store_true"
+					, dest="tls_enable"
+					, help="Enable TLS")
 
-try:
-	import aerospike
-except:
-	print "Unable to load Aerospike/Aerospike library, is the python client installed? (sudo pip install aerospike)"
-	sys.exit(-1)
+parser.add_argument("--tls_encrypt_only"
+					, action="store_true"
+					, dest="tls_encrypt_only"
+					, help="TLS Encrypt Only")
+
+parser.add_argument("--tls_keyfile"
+					, dest="tls_keyfile"
+					, help="The private keyfile for your client TLS Cert")
+parser.add_argument("--tls_certfile"
+					, dest="tls_certfile"
+					, help="The client TLS cert")
+parser.add_argument("--tls_cafile"
+					, dest="tls_cafile"
+					, help="The CA certificate for the server (if self-signed or not globally recognized)")
+parser.add_argument("--tls_capath"
+					, dest="tls_capath"
+					, help="The path to a directory containing CRLs")
+parser.add_argument("--tls_protocols"
+					, dest="tls_protocols"
+					, help="The TLS protocol to use. Available choices: SSLv2, SSLv3, TLSv1, TLSv1.1, TLSv1.2, all. An optional + or - can be appended before the protocol to indicate specific inclusion or exclusion.")
+parser.add_argument("--tls_blacklist"
+					, dest="tls_blacklist"
+					, help="Blacklist including serial number of certs to revoke")
+parser.add_argument("--tls_ciphers"
+					, dest="tls_ciphers"
+					, help="Ciphers to include. See https://www.openssl.org/docs/man1.0.1/apps/ciphers.html for cipher list format")
+parser.add_argument("--tls_crl"
+					, dest="tls_crl"
+					, action="store_true"
+					, help="Checks SSL/TLS certs against vendor's Certificate Revocation Lists for revoked certificates. CRLs are found in path specified by --tls_capath")
+parser.add_argument("--tls_crlall"
+					, dest="tls_crlall"
+					, action="store_true"
+					, help="Check on all entries within the CRLs")
+parser.add_argument("--tls_name"
+					, dest="tls_name"
+					, help="The expected name on the server side certificate")
+
+
+
+args = parser.parse_args()
 
 user = None
 password = None
@@ -376,21 +612,25 @@ class clGraphiteDaemon(Daemon):
 		s = self.connect()
 		print "Aerospike-Graphite connector started: ", time.asctime(time.localtime())
 		sys.stdout.flush()
-		config = { 'hosts' : [ (AEROSPIKE_SERVER, AEROSPIKE_PORT) ] }
 		while True:
 			msg = []
 			now = int(time.time())
 			try:
-				client = aerospike.client(config).connect(user,password)
-				r = client.info_node('statistics',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
-			except:
+				client = Client(addr=AEROSPIKE_SERVER,port=AEROSPIKE_PORT)
+				client.connect(keyfile=args.tls_keyfile, certfile=args.tls_certfile, ca_certs=args.tls_cafile, ciphers=args.tls_ciphers, tls_enable=args.tls_enable,
+					encrypt_only=args.tls_encrypt_only, capath=args.tls_capath, protocols=args.tls_protocols, cert_blacklist=args.tls_blacklist, crl_check=args.tls_crl,
+					crl_check_all=args.tls_crlall, tls_name=args.tls_name)
+				if user and password:
+					status = client.auth(user,password)
+				r = client.info('statistics')
+			except Exception as e:
 				print "Unable to connect to aerospike"
+				print e
 				sys.stdout.flush()
 				time.sleep(INTERVAL)
 				continue
 			try:
 				if (-1 != r):
-					r = r.split('\t')[1].strip()
 					lines = []
 					for string in r.split(';'):
 						if string == "":
@@ -411,9 +651,9 @@ class clGraphiteDaemon(Daemon):
 			if args.sets:
 				r = -1
 				try:
-					r = client.info_node('sets',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+					r = client.info('sets')
 					if (-1 != r):
-						r = r.split('\t')[1].strip()
+						r = r.strip()
 						lines = []
 						for string in r.split(';'):
 							if len(string) == 0:
@@ -425,19 +665,20 @@ class clGraphiteDaemon(Daemon):
 								key, value = set_tuple.split('=')
 								lines.append("%s.sets.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, namespace[1], sets[1], key, value, now))
 						msg.extend(lines)
-				except:
+				except Exception as e:
 					print "Unable to parse set stats:"
 					print r
+					print e
 					sys.stdout.flush()
 			if args.latency:
 				r = -1
 				try:
 					if args.latency.startswith('latency:'):
-						r = client.info_node(args.latency,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+						r = client.info(args.latency)
 					else:
-						r = client.info_node('latency:',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+						r = client.info('latency:')
 					if (-1 != r) and not (r.startswith('error')):
-						r = r.split('\t')[1].strip()
+						r = r.strip()
 						lines = []
 						latency_type = ""
 						header = []
@@ -472,17 +713,16 @@ class clGraphiteDaemon(Daemon):
 			if args.namespace:
 				r = -1
 				try:
-					r = client.info_node('namespaces',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
-			
+					r = client.info('namespaces')
 					if (-1 != r):
-						r = r.split('\t')[1].strip()
+						r = r.strip()
 						namespaces = filter(None, r.split(';'))
 						if len(namespaces) > 0:
 							for namespace in namespaces:
 								r = -1
-								r = client.info_node('namespace/' + namespace ,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+								r = client.info('namespace/' + namespace)
 								if (-1 != r):
-									r = r.split('\t')[1].strip()
+									r = r.strip()
 									lines = []
 									for string in r.split(';'):
 										name, value = string.split('=')
@@ -501,9 +741,9 @@ class clGraphiteDaemon(Daemon):
 				DCS = [ item for sublist in AEROSPIKE_XDR_DCS for item in sublist]
 				for DC in DCS:
 					try:
-						r = client.info_node('dc/' + DC ,(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+						r = client.info('dc/' + DC)
 						if (-1 != r):
-							r = r.split('\t')[1].strip()
+							r = r.strip()
 							lines = []
 							for string in r.split(';'):
 								if string == "":
@@ -536,9 +776,9 @@ class clGraphiteDaemon(Daemon):
 			if args.sindex:
 				r = -1
 				try:
-					r = client.info_node('sindex',(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+					r = client.info('sindex')
 					if (-1 != r):
-						r = r.split('\t')[1].strip()
+						r = r.strip()
 						indexes = filter(None, r)
 						if len(indexes) > 0:
 							lines = []
@@ -561,11 +801,11 @@ class clGraphiteDaemon(Daemon):
 	
 									r = -1
 									try:
-										r = client.info_node('sindex/' + index["ns"] + '/' + index["indexname"],(AEROSPIKE_SERVER,AEROSPIKE_PORT))
+										r = client.info('sindex/' + index['ns'] + '/' + index['indexname'])
 									except:
 										pass
 									if (-1 != r):
-										r = r.split('\t')[1].strip()
+										r = r.strip()
 										for string in r.split(';'):
 											name, value = string.split('=')
 											value = value.replace('false', "0")
