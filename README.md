@@ -2,8 +2,8 @@
 ## Description
 This repositiory provides the asgraphite connector to connect Aerospike with Graphite.
 
-This script is included with the **aerospike-tools** package with is bundled
-with the server package and is installed into`/opt/aerospike/bin/asgraphite`.
+This script is included with the **aerospike-tools** package which is bundled
+with the Aerospike server package and is installed into`/opt/aerospike/bin/asgraphite`.
 
 # Install
 ```bash
@@ -112,7 +112,7 @@ $ python /opt/aerospike/bin/asgraphite --stop
 #  To run with SSL/TLS encrypt only
 $ python /opt/aerospike/bin/asgraphite -n --tls_enable --tls_encrypt_only true --start -g <graphite_host> -p <graphite_port>
 
-#  To run with SSL/TLS standard auth
+#  To run with SSL/TLS authenticate server
 $ python /opt/aerospike/bin/asgraphite -n --tls_enable --tls_cafile /path/to/CA/root.pem --tls_name <server name on cert> --start -g <graphite_host> -p <graphite_port>
 ```
 
@@ -121,4 +121,4 @@ monitoring after a server restart.
 
 ## Dependencies
 - python 2.6+
-- python argparse, bcrypt (is using auth), pyOpenSSL (if using SSL/TLS)
+- python argparse, bcrypt (if using auth), pyOpenSSL (if using SSL/TLS)
