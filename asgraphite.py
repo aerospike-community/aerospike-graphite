@@ -690,8 +690,9 @@ class clGraphiteDaemon(Daemon):
 								latency_type, rest = string.split(':', 1)
 								# handle dynamic naming
 								match = re.match('{(.*)}',latency_type)
-								latency_type = re.sub('{.*}-','',latency_type)
-								latency_type = match.groups()[0]+'.'+latency_type
+								if match:
+									latency_type = re.sub('{.*}-','',latency_type)
+									latency_type = match.groups()[0]+'.'+latency_type
 								header = rest.split(',')
 							else:
 								val = string.split(',')
