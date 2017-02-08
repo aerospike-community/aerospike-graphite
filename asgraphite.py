@@ -623,10 +623,11 @@ class clGraphiteDaemon(Daemon):
 		return s
 
 	def run(self):
-#		print "Starting asgraphite daemon" , time.asctime(time.localtime())
 		if not args.stdout:
+			print "Starting asgraphite daemon" , time.asctime(time.localtime())
 			s = self.connect()
-#		print "Aerospike-Graphite connector started: ", time.asctime(time.localtime())
+			print "Aerospike-Graphite connector started: ", time.asctime(time.localtime())
+
 		sys.stdout.flush()
 		while True:
 			msg = []
