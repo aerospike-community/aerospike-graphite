@@ -742,6 +742,8 @@ class clGraphiteDaemon(Daemon):
 									try:
 										r = client.info('hist-dump:ns=' + namespace + ';hist=' + histtype)
 										if (-1 != r):
+											if 'hist-not-applicable' in r:
+												continue	# skip in-memory namespaces that don't have histograms
 											r = r.strip()
 											lines = []
 											string, ignore = r.split(';')
