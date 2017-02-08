@@ -512,6 +512,12 @@ parser.add_argument("-si"
 					, action="store_true"
 					, dest="sindex"
 					, help="Gather sindex based statistics")
+parser.add_argument("-hi"
+					, "--hist-dump"
+					, nargs='+'
+					, action='append'
+					, dest="hist_dump"
+					, help="Gather histogram data.  Valid args are ttl and objsz")
 
 parser.add_argument("--tls_enable"
 					, action="store_true"
@@ -730,6 +736,30 @@ class clGraphiteDaemon(Daemon):
 										value = value.replace('true', "1")
 										lines.append(GRAPHITE_PATH_PREFIX + "." + namespace + ".%s %s %s" % (name, value, now))
 								msg.extend(lines)
+								# Flatten the list
+								HD = [ item for sublist in args.hist_dump for item in sublist]
+								for histtype in HD:
+									try:
+										r = client.info('hist-dump:ns=' + namespace + ';hist=' + histtype)
+										if (-1 != r):
+											r = r.strip()
+											lines = []
+											string, ignore = r.split(';')
+											namespace, string = string.split(':')
+											type, string = string.split('=')
+											buckets, size, string = string.split(',', 2)
+											lines.append("%s.histogram.%s.%s %s %s" % (namespace, type, "bucketsize", size, now))
+											bucket = 0
+											total = 0
+											for val in string.split(','):
+												lines.append("%s.histogram.%s.%s %s %s" % (namespace, type, "bucket_"  + str(bucket), val, now))
+												bucket+=1
+											msg.extend(lines)
+									except:
+										print "Unexpected error:", sys.exc_info()[0]
+										print "Failure to get histtype " + histtype + ":"
+										print r
+										sys.stdout.flush()
 				except:
 					print "Unable to parse namespace list:"
 					print r
