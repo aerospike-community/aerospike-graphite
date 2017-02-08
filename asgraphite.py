@@ -756,7 +756,6 @@ class clGraphiteDaemon(Daemon):
 												bucket+=1
 											msg.extend(lines)
 									except:
-										print "Unexpected error:", sys.exc_info()[0]
 										print "Failure to get histtype " + histtype + ":"
 										print r
 										sys.stdout.flush()
