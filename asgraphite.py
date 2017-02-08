@@ -748,11 +748,11 @@ class clGraphiteDaemon(Daemon):
 											namespace, string = string.split(':')
 											type, string = string.split('=')
 											buckets, size, string = string.split(',', 2)
-											lines.append("%s.histogram.%s.%s %s %s" % (namespace, type, "bucketsize", size, now))
+											lines.append(GRAPHITE_PATH_PREFIX + ".%s.histogram.%s.%s %s %s" % (namespace, type, "bucketsize", size, now))
 											bucket = 0
 											total = 0
 											for val in string.split(','):
-												lines.append("%s.histogram.%s.%s %s %s" % (namespace, type, "bucket_"  + str(bucket), val, now))
+												lines.append(GRAPHITE_PATH_PREFIX + ".%s.histogram.%s.%s %s %s" % (namespace, type, "bucket_"  + str(bucket), val, now))
 												bucket+=1
 											msg.extend(lines)
 									except:
