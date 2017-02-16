@@ -737,31 +737,32 @@ class clGraphiteDaemon(Daemon):
 										value = value.replace('true', "1")
 										lines.append(GRAPHITE_PATH_PREFIX + "." + namespace + ".%s %s %s" % (name, value, now))
 								msg.extend(lines)
-								# Flatten the list
-								HD = [ item for sublist in args.hist_dump for item in sublist]
-								for histtype in HD:
-									try:
-										r = client.info('hist-dump:ns=' + namespace + ';hist=' + histtype)
-										if (-1 != r):
-											if 'hist-not-applicable' in r:
-												continue	# skip in-memory namespaces that don't have histograms
-											r = r.strip()
-											lines = []
-											string, ignore = r.split(';')
-											namespace, string = string.split(':')
-											type, string = string.split('=')
-											buckets, size, string = string.split(',', 2)
-											lines.append(GRAPHITE_PATH_PREFIX + ".%s.histogram.%s.%s %s %s" % (namespace, type, "bucketsize", size, now))
-											bucket = 0
-											total = 0
-											for val in string.split(','):
-												lines.append(GRAPHITE_PATH_PREFIX + ".%s.histogram.%s.%s %s %s" % (namespace, type, "bucket_"  + str(bucket), val, now))
-												bucket+=1
-											msg.extend(lines)
-									except:
-										print "Failure to get histtype " + histtype + ":"
-										print r
-										sys.stdout.flush()
+								if args.hist_dump:
+									# Flatten the list
+									HD = [ item for sublist in args.hist_dump for item in sublist]
+									for histtype in HD:
+										try:
+											r = client.info('hist-dump:ns=' + namespace + ';hist=' + histtype)
+											if (-1 != r):
+												if 'hist-not-applicable' in r:
+													continue	# skip in-memory namespaces that don't have histograms
+												r = r.strip()
+												lines = []
+												string, ignore = r.split(';')
+												namespace, string = string.split(':')
+												type, string = string.split('=')
+												buckets, size, string = string.split(',', 2)
+												lines.append(GRAPHITE_PATH_PREFIX + ".%s.histogram.%s.%s %s %s" % (namespace, type, "bucketsize", size, now))
+												bucket = 0
+												total = 0
+												for val in string.split(','):
+													lines.append(GRAPHITE_PATH_PREFIX + ".%s.histogram.%s.%s %s %s" % (namespace, type, "bucket_"  + str(bucket), val, now))
+													bucket+=1
+												msg.extend(lines)
+										except:
+											print "Failure to get histtype " + histtype + ":"
+											print r
+											sys.stdout.flush()
 				except:
 					print "Unable to parse namespace list:"
 					print r
