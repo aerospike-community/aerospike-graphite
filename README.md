@@ -13,9 +13,9 @@ sudo pip install -r requirements.txt
 # Usage
 ```bash
 $ python /opt/aerospike/bin/asgraphite --help
-usage: asgraphite.py [-h] [-U USER] [-P [PASSWORD]] [--stop] [--start]
-                     [--restart] [-v] [-n] [-s] [-l LATENCY] [-x DC [DC ...]]
-                     [-g GRAPHITE_SERVER] [-p GRAPHITE_PORT]
+usage: asgraphite.py [-h] [-U USER] [-P [PASSWORD]] [-c CREDENTIALS] [--stop]
+                     [--start] [--restart] [-v] [-n] [-s] [-l LATENCY]
+                     [-x DC [DC ...]] [-g GRAPHITE_SERVER] [-p GRAPHITE_PORT]
                      [--interval GRAPHITE_INTERVAL] [--prefix GRAPHITE_PREFIX]
                      [-i INFO_PORT] [-b BASE_NODE] [-f LOG_FILE] [-si]
                      [-hi HIST_DUMP [HIST_DUMP ...]] [--tls_enable]
@@ -25,11 +25,15 @@ usage: asgraphite.py [-h] [-U USER] [-P [PASSWORD]] [--stop] [--start]
                      [--tls_blacklist TLS_BLACKLIST]
                      [--tls_ciphers TLS_CIPHERS] [--tls_crl] [--tls_crlall]
                      [--tls_name TLS_NAME]
-Options:
+
+optional arguments:
   -h, --help            show this help message and exit
   -U USER, --user USER  user name
   -P [PASSWORD], --password [PASSWORD]
                         password
+  -c CREDENTIALS, --credentials-file CREDENTIALS
+                        Path to the credentials file. Use this in place of
+                        --user and --password.
   --stop                Stop the Daemon
   --start               Start the Daemon
   --restart             Restart the Daemon
@@ -133,6 +137,13 @@ $ python /opt/aerospike/bin/asgraphite -n --tls_enable --tls_cafile /path/to/CA/
 
 Add the asgraphite monitoring commands to `/etc/rc.local` to automatically start
 monitoring after a server restart.
+
+### Authentication
+
+You can specify User and Password for authentication via the -U/--user and -P/--password parameters.
+The Password is also an interactive prompt if you leave it empty.
+
+If this is not preferable, you can also specify a credentials file with -c/--credentials-file. It is a simple 2 line file, with the username and password on each line, in that order. With this method, the credentials file can be secured via other means (eg: chmod 600) and prevent snooping.
 
 ## Dependencies
 - python 2.6+

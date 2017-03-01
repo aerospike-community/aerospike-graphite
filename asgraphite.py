@@ -425,6 +425,11 @@ parser.add_argument("-P"
 					, const="prompt"
 					, help="password")
 
+parser.add_argument("-c"
+					, "--credentials-file"
+					, dest="credentials"
+					, help="Path to the credentials file. Use this in place of --user and --password.")
+
 parser.add_argument("--stop"
 					, action="store_true"
 					, dest="stop"
@@ -626,6 +631,14 @@ class clGraphiteDaemon(Daemon):
 				client.connect(keyfile=args.tls_keyfile, certfile=args.tls_certfile, ca_certs=args.tls_cafile, ciphers=args.tls_ciphers, tls_enable=args.tls_enable,
 					encrypt_only=args.tls_encrypt_only, capath=args.tls_capath, protocols=args.tls_protocols, cert_blacklist=args.tls_blacklist, crl_check=args.tls_crl,
 					crl_check_all=args.tls_crlall, tls_name=args.tls_name)
+				global user, password
+				if args.credentials:
+					try:
+						cred_file = open(args.credentials,'r')
+						user = cred_file.readline().strip()
+						password = cred_file.readline().strip()
+					except IOError:
+						print "Unable to read credentials file: %s"%args.credentials
 				if user and password:
 					status = client.auth(user,password)
 				r = client.info('statistics')
