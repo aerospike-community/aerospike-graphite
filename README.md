@@ -145,6 +145,13 @@ The Password is also an interactive prompt if you leave it empty.
 
 If this is not preferable, you can also specify a credentials file with -c/--credentials-file. It is a simple 2 line file, with the username and password on each line, in that order. With this method, the credentials file can be secured via other means (eg: chmod 600) and prevent snooping.
 
+### Logfile Management
+
+An example logrotate file is provided. Move/rename the asgraphite.logrotate into your logrotate.d dir (eg: /etc/logrotate.d)
+
+**Note**
+This script is not aware of journalctl, as such it is not completely compatible with SystemD OSs. If your OS is a SystemD OS (RedHat 7, Ubuntu 16+), you would need to reinstall logrotate. Otherwise the generated log will grow without end.
+
 ## Dependencies
 - python 2.6+
 - python argparse, bcrypt (if using auth), pyOpenSSL (if using SSL/TLS)
