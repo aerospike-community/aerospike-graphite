@@ -259,7 +259,7 @@ class Client(object):
 			except socket.error as msg:
 				s.close()
 				s = None
-				print "Connect Error" % msg
+				print "Connect Error %s" % msg
 				continue
 			break
 
