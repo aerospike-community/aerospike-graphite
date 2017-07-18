@@ -19,7 +19,7 @@
 
 __author__ = "Aerospike"
 __copyright__ = "Copyright 2017 Aerospike"
-__version__ = "1.6.1"
+__version__ = "1.6.2"
 
 # Modules
 import argparse
@@ -696,7 +696,7 @@ class clGraphiteDaemon(Daemon):
 						r = client.info(args.latency)
 					else:
 						r = client.info('latency:')
-					if (-1 != r) and not (r.startswith('error')):
+					if (-1 != r):
 						r = r.strip()
 						lines = []
 						latency_type = ""
