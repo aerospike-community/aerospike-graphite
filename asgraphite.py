@@ -192,6 +192,13 @@ class Daemon:
 		self.stop()
 		self.start()
 
+	def once(self):
+		"""
+		Run the process once
+		"""
+		# Start the daemon
+		self.run()
+
 	def run(self):
 		"""
 		You should override this method when you subclass Daemon. It will be called after the process has been
@@ -440,10 +447,21 @@ parser.add_argument("--start"
 					, dest="start"
 					, help="Start the Daemon")
 
+parser.add_argument("--stdout"
+					, action="store_true"
+					, dest="stdout"
+					, help="Print metrics output to stdout")
+
+parser.add_argument("--once"
+					, action="store_true"
+					, dest="once"
+					, help="Run the script once")
+
 parser.add_argument("--restart"
 					, action="store_true"
 					, dest="restart"
 					, help="Restart the Daemon")
+
 parser.add_argument("-v"
 					, "--verbose"
 					, action="store_true"
@@ -583,7 +601,7 @@ if args.user != None:
 # Configurable parameters
 LOGFILE = args.log_file
 
-if not args.stop:
+if not args.stop and not args.stdout:
 	if args.graphite_server:
 		GRAPHITE_SERVER = args.graphite_server
 	else:
@@ -619,9 +637,11 @@ class clGraphiteDaemon(Daemon):
 		return s
 
 	def run(self):
-		print "Starting asgraphite daemon" , time.asctime(time.localtime())
-		s = self.connect()
-		print "Aerospike-Graphite connector started: ", time.asctime(time.localtime())
+		if not args.stdout:
+			print "Starting asgraphite daemon" , time.asctime(time.localtime())
+			s = self.connect()
+			print "Aerospike-Graphite connector started: ", time.asctime(time.localtime())
+
 		sys.stdout.flush()
 		while True:
 			msg = []
@@ -891,30 +911,40 @@ class clGraphiteDaemon(Daemon):
 				line = ''
 				for f in fields:
 					line += f + ' '
+				line = line.lstrip('.')
 				nmsg += line + '\n'
-			try:
-				if args.verbose:
-					print nmsg
-				s.sendall(nmsg)
-			except:
-				#Once the connection is broken, we need to reconnect
-				print "ERROR: Unable to send to graphite server, retrying connection.."
-				sys.stdout.flush()
-				s.close()
-				s = self.connect()
-			client.close()
-			time.sleep(INTERVAL)
+			if not args.stdout:
+				try:
+					if args.verbose:
+						print nmsg
+					s.sendall(nmsg)
+				except:
+					#Once the connection is broken, we need to reconnect
+					print "ERROR: Unable to send to graphite server, retrying connection.."
+					sys.stdout.flush()
+					s.close()
+					s = self.connect()
+				client.close()
+			else:
+				print nmsg
+
+			if args.once:
+				break
+			else:
+				time.sleep(INTERVAL)
 
 if __name__ == "__main__":
 	#TODO: move this to config param
 	daemon = clGraphiteDaemon('/tmp/asgraphite.pid', LOGFILE)
-	if args.start or args.stop or args.restart:
+	if args.start or args.stop or args.restart or args.once:
 		if args.start:
 			daemon.start()
 		elif args.stop:
 			daemon.stop()
 		elif args.restart:
 			daemon.restart()
+		elif args.once:
+			daemon.once()
 		else:
 			print "Unknown command"
 			sys.exit(20)
