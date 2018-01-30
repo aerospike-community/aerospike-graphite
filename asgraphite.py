@@ -494,6 +494,11 @@ parser.add_argument("--prefix"
 					, default='instances.aerospike.'
 					, help="Prefix used when sending metrics to Graphite server (default: %(default)s)")
 
+parser.add_argument("--hostname"
+					, dest="hostname"
+					, default=socket.gethostname()
+					, help="Hostname used when sending metrics to Graphite server (default: %(default)s)")
+
 parser.add_argument("-i"
 					, "--info-port"
 					, dest="info_port"
@@ -598,7 +603,7 @@ if not args.stop:
 
 AEROSPIKE_SERVER = args.base_node
 AEROSPIKE_PORT = args.info_port
-AEROSPIKE_SERVER_ID = socket.gethostname()
+AEROSPIKE_SERVER_ID = args.hostname
 AEROSPIKE_XDR_DCS = args.dc
 GRAPHITE_PATH_PREFIX = args.graphite_prefix + AEROSPIKE_SERVER_ID
 INTERVAL = int(args.graphite_interval)
