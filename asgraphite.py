@@ -891,7 +891,7 @@ class clGraphiteDaemon(Daemon):
 				line = ''
 				for f in fields:
 					line += f + ' '
-				nmsg += line + '\n'
+				nmsg += line.strip() + '\n'
 			try:
 				if args.verbose:
 					print nmsg
