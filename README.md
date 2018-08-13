@@ -70,7 +70,7 @@ optional arguments:
                         Prefix used when sending metrics to Graphite server
                         (default: instances.aerospike.)
   --hostname HOSTNAME   Hostname used when sending metrics to Graphite server
-                        (default: ubuntu)
+                        (default: $hostname)
   -i INFO_PORT, --info-port INFO_PORT
                         PORT for Aerospike server (default: 3000)
   -b BASE_NODE, --base-node BASE_NODE
@@ -79,7 +79,7 @@ optional arguments:
                         Logfile for asgraphite (default:
                         /var/log/aerospike/asgraphite.log)
   -si, --sindex         Gather sindex based statistics
-  -hi, --hist-dump      Gather histogram data. Valid args are ttl and objsz
+  -hi, --hist-dump      Gather histogram data. 
   --tls_enable          Enable TLS
   --tls_encrypt_only    TLS Encrypt Only
   --tls_keyfile TLS_KEYFILE
