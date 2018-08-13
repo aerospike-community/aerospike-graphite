@@ -19,7 +19,7 @@
 
 __author__ = "Aerospike"
 __copyright__ = "Copyright 2018 Aerospike"
-__version__ = "1.6.4"
+__version__ = "1.7.0"
 
 # Modules
 import argparse
@@ -404,13 +404,190 @@ class Client(object):
         else:
             raise ClientError("Failed to parse response: %s" % (res))
 
+#########
+# Parsers
+#########
+
+def clean(res):
+    if res is None:
+        return None
+    res = res.strip().strip(';').strip(':').replace(';;', ';')
+    if len(res) > 0:
+        return res
+    return None
+
+# simply returns the same value it was given,
+def value():
+    def parse(input):
+        if input == None:
+            return None
+        return input.strip()
+    return parse
+
+# returns a (k,v) tuple, split on first delim
+def pair(delim='=', key=value(), value=value()):
+    def parse(input):
+        if input is None:
+            return None
+        p = input.strip().strip(delim).split(delim, 1)
+        lp = len(p)
+        if lp == 2:
+            (k, v) = p
+            return (key(k), value(v))
+        elif lp == 1:
+            k = p[0]
+            return (key(k), value(None))
+        else:
+            return (key(None), value(None))
+    return parse
+
+# returns a list of all items 
+def seq(delim=';', entry=value()):
+    def parse(input):
+        if input is None:
+            return None
+        return (entry(e) for e in input.strip().strip(delim).split(delim))
+    return parse
 
 
+# combine pair with seq. A list of (k,v) tuples
+def pairs(delim=';'):
+    return seq(entry=pair(),delim=delim)
+
+# 1 more level of sequences, for sindex and set discovery
+def seqs():
+    return seq(entry=pairs(':'))
+
+
+def parse(input, parser=value()):
+    return parser(clean(input)) if input is not None else input
+
+
+#########
+# Readers
+#########
+
+def service(client, data, now):
+    lines = []
+    data = parse(data,parser=pairs())
+    for metric, value in data:
+        value = value.replace('false','0')
+        value = value.replace('true','1')
+        lines.append("%s.service.%s %s %s" % (GRAPHITE_PATH_PREFIX, metric, value, now))
+    return lines
+
+def sets(client, data, now):
+    lines = []
+    data = parse(data,parser=seqs())
+    for entry in data:
+        _, namespace = entry.next()
+        _, set_name = entry.next()
+        for metric, value in entry:
+            lines.append("%s.sets.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, namespace, set_name, metric, value, now))
+    return lines
+
+# Parse each DC stat
+def dc(client, data, now):
+    # discovery of datacenters, return list of DCs
+    dcs = parse(data,parser=seq())
+    lines = []
+    for dc in dcs:
+        r = -1
+        r = client.info("dc/"+dc)
+        if( -1 != r):
+            data = parse(r,parser=pairs())
+            for metric, value in data:
+                value = value.replace('true', "1")
+                value = value.replace('false', "0")
+                value = value.replace('INACTIVE',"0")
+                value = value.replace('CLUSTER_DOWN',"1")
+                value = value.replace('CLUSTER_UP',"2")
+                value = value.replace('WINDOW_SHIPPER',"3")
+                lines.append("%s.xdr.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, dc, metric, value, now))
+    return lines
+
+# namespace metrics
+def namespace(client, data, now):
+    # namespace discovery
+    namespaces = parse(data,parser=seq())
+    lines = []
+    for namespace in namespaces:
+        r = -1
+        r = client.info("namespace/"+namespace)
+        if( -1 != r):
+            data = parse(r,parser=pairs())
+            for metric, value in data:
+                value = value.replace('false', "0")
+                value = value.replace('true', "1")
+                lines.append("%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, namespace, metric, value, now))
+    return lines
+
+def sindex(client, data, now):
+    # sindex discovery
+    lines = []
+    sindexes = parse(data,parser=seqs())
+    for sindex in sindexes:
+        index = { k:v for k,v in sindex }
+        lines.append("%s.sindexes.%s.%s.sync_state %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], index["sync_state"], now))
+        lines.append("%s.sindexes.%s.%s.state %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], index["state"], now))
+        r = -1
+        r = client.info("sindex/%s/%s"%(index['ns'],index['indexname']))
+        if (-1 != r):
+            data = parse(r,parser=pairs())
+            for metric, value in data:
+                value = value.replace('false', "0")
+                value = value.replace('true', "1")
+                lines.append("%s.sindexes.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, index['ns'], index['indexname'], metric, value, now))
+    return lines
+
+def latency(client, data, now):
+    lines = []
+    latencies = parse(data,parser=seq())
+    header = []
+    latency_type = ""
+    for line in latencies:
+        if line.startswith("error"):
+            continue
+        if len(latency_type) == 0:
+            # header line
+            latency_type, rest = line.split(':',1)
+            #dynamic naming
+            match = re.match('{(.*)}',latency_type)
+            if match:
+                latency_type = re.sub('{.*}-','',latency_type)
+                latency_type = match.groups()[0]+'.'+latency_type
+            header = rest.split(',')
+        else:
+            val = line.split(',')
+            for i in range (1, len(header)):
+                name = latency_type + "." + header[i]
+                name = name.replace('>', 'over_')
+                name = name.replace('ops/sec', 'ops_per_sec')
+                value = val[i]
+                lines.append("%s.latency.%s %s %s" % (GRAPHITE_PATH_PREFIX , name, value, now))
+            # reset nase case
+            latency_type=""
+            header = []
+    return lines
+
+def histogram(client, data, now):
+    lines = []
+    namespace=''
+    hist_type = ''
+    data = parse(data,parser=seq(delim=':',entry=pair()))
+    cdata = {(k,v) for k,v in data}
+#    print cdata
+    bucket_size = cdata['bucket-width']
+    for index, bucket in enumerate(cdata['buckets'].split(',')):
+        lines.append(GRAPHITE_PATH_PREFIX + ".%s.histogram.%s.%s %s %s" % (namespace, hist_type, "bucket_"  + str(idx), bucket, now))
+
+    return lines
+    
 ####
 # Usage :
-# ## To send just the latency information to Graphite
+### To send just the latency information to Graphite
 # python asgraphite.py -l 'latency:back=70;duration=60' --start -g s1 -p 2023
-# ## To send just 1 namespace stats to Graphite, for multiple namespaces, start accordingly
+# ## To send all namespace stats to Graphite
 # python asgraphite.py -n --start -g s1 -p 2023
 # ## To send just the statistics information to Graphite
 # python asgraphite.py --start -g s1 -p 2023
@@ -478,8 +655,7 @@ parser.add_argument("-l"
                     , help="Enable latency statistics and specify query (ie. latency:back=70;duration=60)")
 parser.add_argument("-x"
                     , "--xdr"
-                    , nargs='+'
-                    , action='append'
+                    , action='store_true'
                     , dest="dc"
                     , help="Gather XDR datacenter statistics")
 parser.add_argument("-g"
@@ -524,8 +700,7 @@ parser.add_argument("-si"
                     , help="Gather sindex based statistics")
 parser.add_argument("-hi"
                     , "--hist-dump"
-                    , nargs='+'
-                    , action='append'
+                    , action='store_true'
                     , dest="hist_dump"
                     , help="Gather histogram data.  Valid args are ttl and objsz")
 parser.add_argument("--tls_enable"
@@ -620,6 +795,18 @@ class clGraphiteDaemon(Daemon):
                 time.sleep(INTERVAL)
         return s
 
+
+    def query(self, client,  metric, time ,function):
+        data = -1
+        try:
+            data = client.info(metric)
+            return function(client,data,time)
+        except Exception as e:
+            print "Unable to parse %s:" % metric
+            print data
+            print e
+            sys.stdout.flush()
+
     def run(self):
         if not args.stdout:
             print "Starting asgraphite daemon" , time.asctime(time.localtime())
@@ -650,225 +837,30 @@ class clGraphiteDaemon(Daemon):
                 sys.stdout.flush()
                 time.sleep(INTERVAL)
                 continue
-            try:
-                r = client.info('statistics')
-                if (-1 != r):
-                    lines = []
-                    for string in r.split(';'):
-                        if string == "":
-                            continue
-    
-                        if string.count('=') > 1:
-                            continue
-    
-                        name, value = string.split('=')
-                        value = value.replace('false', "0")
-                        value = value.replace('true', "1")
-                        lines.append("%s.service.%s %s %s" % (GRAPHITE_PATH_PREFIX, name, value, now))
-                    msg.extend(lines)
-            except:
-                print "Unable to parse general stats:"
-                print r        # not combined with above line because 'r' could be int (-1) or string
-                sys.stdout.flush()
+            msg += self.query(client, 'statistics', now, service)
             if args.sets:
-                r = -1
-                try:
-                    r = client.info('sets')
-                    if (-1 != r):
-                        r = r.strip()
-                        lines = []
-                        for string in r.split(';'):
-                            if len(string) == 0:
-                                continue
-                            setList = string.split(':')
-                            namespace = setList[0].split('=')
-                            sets = setList[1].split('=')
-                            for set_tuple in setList[2:]:
-                                key, value = set_tuple.split('=')
-                                lines.append("%s.sets.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, namespace[1], sets[1], key, value, now))
-                        msg.extend(lines)
-                except Exception as e:
-                    print "Unable to parse set stats:"
-                    print r
-                    print e
-                    sys.stdout.flush()
+                msg += self.query(client, 'sets', now, sets)
             if args.latency:
-                r = -1
-                try:
-                    if args.latency.startswith('latency:'):
-                        r = client.info(args.latency)
-                    else:
-                        r = client.info('latency:')
-                    if (-1 != r):
-                        r = r.strip()
-                        lines = []
-                        latency_type = ""
-                        header = []
-                        for string in r.split(';'):
-                            if len(string) == 0 or string.startswith("error"):
-                                continue
-                            if len(latency_type) == 0:
-                                # Base case
-                                latency_type, rest = string.split(':', 1)
-                                # handle dynamic naming
-                                match = re.match('{(.*)}',latency_type)
-                                if match:
-                                    latency_type = re.sub('{.*}-','',latency_type)
-                                    latency_type = match.groups()[0]+'.'+latency_type
-                                header = rest.split(',')
-                            else:
-                                val = string.split(',')
-                                for i in range(1, len(header)):
-                                    name = latency_type + "." + header[i]
-                                    name = name.replace('>', 'over_')
-                                    name = name.replace('ops/sec', 'ops_per_sec')
-                                    value = val[i]
-                                    lines.append("%s.latency.%s %s %s" % (GRAPHITE_PATH_PREFIX , name, value, now))
-                                # Reset base case
-                                latency_type = ""
-                                header = []
-                        msg.extend(lines)
-                except Exception as e:
-                    print "Unable to parse latency stats:"
-                    print r
-                    print e
-                    sys.stdout.flush()
-
+                if args.latency.startswith('latency:'):
+                    msg += self.query(client, args.latency, now, latency)
+                else:
+                    msg += self.query(client, 'latency:', now, latency)
             if args.namespace:
-                r = -1
-                try:
-                    r = client.info('namespaces')
-                    if (-1 != r):
-                        r = r.strip()
-                        namespaces = filter(None, r.split(';'))
-                        if len(namespaces) > 0:
-                            for namespace in namespaces:
-                                r = -1
-                                r = client.info('namespace/' + namespace)
-                                if (-1 != r):
-                                    r = r.strip()
-                                    lines = []
-                                    for string in r.split(';'):
-                                        name, value = string.split('=')
-                                        value = value.replace('false', "0")
-                                        value = value.replace('true', "1")
-                                        lines.append(GRAPHITE_PATH_PREFIX + "." + namespace + ".%s %s %s" % (name, value, now))
-                                msg.extend(lines)
-                                if args.hist_dump:
-                                    # Flatten the list
-                                    HD = [ item for sublist in args.hist_dump for item in sublist]
-                                    for histtype in HD:
-                                        try:
-                                            r = client.info('hist-dump:ns=' + namespace + ';hist=' + histtype)
-                                            if (-1 != r):
-                                                if 'hist-not-applicable' in r:
-                                                    continue    # skip in-memory namespaces that don't have histograms
-                                                r = r.strip()
-                                                lines = []
-                                                string, ignore = r.split(';')
-                                                namespace, string = string.split(':')
-                                                type, string = string.split('=')
-                                                buckets, size, string = string.split(',', 2)
-                                                lines.append(GRAPHITE_PATH_PREFIX + ".%s.histogram.%s.%s %s %s" % (namespace, type, "bucketsize", size, now))
-                                                bucket = 0
-                                                total = 0
-                                                for val in string.split(','):
-                                                    lines.append(GRAPHITE_PATH_PREFIX + ".%s.histogram.%s.%s %s %s" % (namespace, type, "bucket_"  + str(bucket), val, now))
-                                                    bucket+=1
-                                                msg.extend(lines)
-                                        except:
-                                            print "Failure to get histtype " + histtype + ":"
-                                            print r
-                                            sys.stdout.flush()
-                except Exception as e:
-                    print "Unable to parse namespace list:"
-                    print r
-                    print e
-                    sys.stdout.flush()
-    
+                msg += self.query(client, 'namespaces', now, namespace)
+            if args.hist_dump:
+                for ns in client.info('namespaces').split(';'):
+                    for histo in ["ttl","object-size-linear"]:
+                        msg+=self.query(client, 'histogram:type=%s;namespace=%s' % (histo, ns), now, histogram)
             if args.dc:
-                r = -1
-                # Flatten the list
-                DCS = [ item for sublist in AEROSPIKE_XDR_DCS for item in sublist]
-                for DC in DCS:
-                    try:
-                        r = client.info('dc/' + DC)
-                        if (-1 != r):
-                            r = r.strip()
-                            lines = []
-                            for string in r.split(';'):
-                                if string == "":
-                                    continue
-    
-                                if string.count('=') > 1:
-                                    continue
-    
-                                name, value = string.split('=')
-                                value = value.replace('false', "0")
-                                value = value.replace('true', "1")
-                                value = value.replace('INACTIVE',"0")
-                                value = value.replace('CLUSTER_DOWN',"1")
-                                value = value.replace('CLUSTER_UP',"2")
-                                value = value.replace('WINDOW_SHIPPER',"3")
-                                lines.append("%s.xdr.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, DC, name, value, now))
-                            msg.extend(lines)
-                    except Exception as e:
-                        print "Unable to parse DC stats:"
-                        print r
-                        print e
-                        sys.stdout.flush()
-    
+                msg += self.query(client, 'dcs', now, dc)
     ##    Logic to export SIndex Stats to Graphite
     ##    Since Graphite understands numbers we have used substitutes as below
     ##    sync_state --
     ##        synced = 1 & need_sync = 0
     ##    state --
     ##        RW = 1 & WO = 0
-    
             if args.sindex:
-                r = -1
-                try:
-                    r = client.info('sindex')
-                    if (-1 != r):
-                        r = r.strip()
-                        indexes = filter(None, r)
-                        if len(indexes) > 0:
-                            lines = []
-                            for index_line in indexes.split(';'):
-                                if len(index_line) > 0:
-                                    index = dict(item.split("=") for item in index_line.split(":"))
-    
-                                    if (index["sync_state"] == "synced"):
-                                        index["sync_state"] = 1
-                                    elif (index["sync_state"] == "need_sync"):
-                                        index["sync_state"] = 0
-    
-                                    if (index["state"] == "RW"):
-                                        index["state"] = 1
-                                    elif (index["state"] == "WO"):
-                                        index["state"] = 0
-    
-                                    lines.append("%s.sindexes.%s.%s.sync_state %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], index["sync_state"], now))
-                                    lines.append("%s.sindexes.%s.%s.state %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], index["state"], now))
-    
-                                    r = -1
-                                    try:
-                                        r = client.info('sindex/' + index['ns'] + '/' + index['indexname'])
-                                    except:
-                                        pass
-                                    if (-1 != r):
-                                        r = r.strip()
-                                        for string in r.split(';'):
-                                            name, value = string.split('=')
-                                            value = value.replace('false', "0")
-                                            value = value.replace('true', "1")
-                                            lines.append("%s.sindexes.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], name, value, now))
-                            msg.extend(lines)
-                except Exception as e:
-                    print "Unable to parse sindex stats:"
-                    print r
-                    print e
-                    sys.stdout.flush()
+                msg += self.query(client, 'sindex', now, sindex)
             nmsg = ''
             #AER-2098 move all non numeric values to numbers
             #check if the val is a float (graphite uses float)

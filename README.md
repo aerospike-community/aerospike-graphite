@@ -5,6 +5,16 @@ This repositiory provides the asgraphite connector to connect Aerospike with Gra
 This script is included with the **aerospike-tools** package which is bundled
 with the Aerospike server package and is installed into`/opt/aerospike/bin/asgraphite`.
 
+
+**1.7 preview**
+
+* Rewrote core metrics parsing, inline with current [collectd](https://github.com/aerospike/aerospike-collectd)
+implementation
+* **CLI CHANGE**: XDR DR metrics `-x` is now a flag. Discovery will be performed and all metrics shipped. No longer need 
+to specify individual DCs.
+* **BREAKING CHANGE**: Histogram dump `-hi` now only works on ASD 4.2+. To get histograms on earlier server versions,
+please use the 1.6.X releases of Aerospike-Graphite.
+
 # Install
 ```bash
 sudo pip install -r requirements.txt
