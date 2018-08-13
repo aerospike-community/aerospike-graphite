@@ -8,10 +8,12 @@ with the Aerospike server package and is installed into`/opt/aerospike/bin/asgra
 
 **1.7 preview**
 
-* Rewrote core metrics parsing, inline with current [collectd](https://github.com/aerospike/aerospike-collectd)
-implementation
+* Rewrote core metrics parsing, inline with current [aerospike-collectd](https://github.com/aerospike/aerospike-collectd)
+implementation.
 * **CLI CHANGE**: XDR DR metrics `-x` is now a flag. Discovery will be performed and all metrics shipped. No longer need 
 to specify individual DCs.
+* **CLI CHANGE** Histogram metrics `-hi` is now a flag. Discovery will be performed and all metrics shipped. No longer
+need to specify individual histograms. Only supports `ttl` and `object-size-linear` histograms.
 * **BREAKING CHANGE**: Histogram dump `-hi` now only works on ASD 4.2+. To get histograms on earlier server versions,
 please use the 1.6.X releases of Aerospike-Graphite.
 
@@ -25,11 +27,10 @@ sudo pip install -r requirements.txt
 $ python /opt/aerospike/bin/asgraphite --help
 usage: asgraphite.py [-h] [-U USER] [-P [PASSWORD]] [-c CREDENTIALS]
                      [--stop | --start | --once | --restart] [--stdout] [-v]
-                     [-n] [-s] [-l LATENCY] [-x DC [DC ...]]
-                     [-g GRAPHITE_SERVER] [-p GRAPHITE_PORT]
-                     [--interval GRAPHITE_INTERVAL] [--prefix GRAPHITE_PREFIX]
-                     [--hostname HOSTNAME] [-i INFO_PORT] [-b BASE_NODE]
-                     [-f LOG_FILE] [-si] [-hi HIST_DUMP [HIST_DUMP ...]]
+                     [-n] [-s] [-l LATENCY] [-x] [-g GRAPHITE_SERVER]
+                     [-p GRAPHITE_PORT] [--interval GRAPHITE_INTERVAL]
+                     [--prefix GRAPHITE_PREFIX] [--hostname HOSTNAME]
+                     [-i INFO_PORT] [-b BASE_NODE] [-f LOG_FILE] [-si] [-hi]
                      [--tls_enable] [--tls_encrypt_only]
                      [--tls_keyfile TLS_KEYFILE] [--tls_certfile TLS_CERTFILE]
                      [--tls_cafile TLS_CAFILE] [--tls_capath TLS_CAPATH]
@@ -58,8 +59,7 @@ optional arguments:
   -l LATENCY, --latency LATENCY
                         Enable latency statistics and specify query (ie.
                         latency:back=70;duration=60)
-  -x DC [DC ...], --xdr DC [DC ...]
-                        Gather XDR datacenter statistics
+  -x, --xdr             Gather XDR datacenter statistics
   -g GRAPHITE_SERVER, --graphite GRAPHITE_SERVER
                         REQUIRED: IP for Graphite server
   -p GRAPHITE_PORT, --graphite-port GRAPHITE_PORT
@@ -69,6 +69,8 @@ optional arguments:
   --prefix GRAPHITE_PREFIX
                         Prefix used when sending metrics to Graphite server
                         (default: instances.aerospike.)
+  --hostname HOSTNAME   Hostname used when sending metrics to Graphite server
+                        (default: ubuntu)
   -i INFO_PORT, --info-port INFO_PORT
                         PORT for Aerospike server (default: 3000)
   -b BASE_NODE, --base-node BASE_NODE
@@ -77,8 +79,7 @@ optional arguments:
                         Logfile for asgraphite (default:
                         /var/log/aerospike/asgraphite.log)
   -si, --sindex         Gather sindex based statistics
-  -hi HIST_DUMP [HIST_DUMP ...], --hist-dump HIST_DUMP [HIST_DUMP ...]
-                        Gather histogram data. Valid args are ttl and objsz
+  -hi, --hist-dump      Gather histogram data. Valid args are ttl and objsz
   --tls_enable          Enable TLS
   --tls_encrypt_only    TLS Encrypt Only
   --tls_keyfile TLS_KEYFILE
@@ -113,6 +114,9 @@ For example, to start <strong>asgraphite</strong> daemon, you might issue a comm
 ```bash
 Usage :
 
+#  To debug metrics or just run once for other wrappers to consume
+$ python /opt/aerospike/bin/asgraphite --once --stdout
+
 #  To send just the (using defaults) latency information to Graphite
 $ python /opt/aerospike/bin/asgraphite -l 'latency:' --start -g <graphite_host> -p <graphite_port>
 
@@ -130,9 +134,7 @@ $ python /opt/aerospike/bin/asgraphite --start -g <graphite_host> -p <graphite_p
 $ python /opt/aerospike/bin/asgraphite -s --start -g <graphite_host> -p <graphite_port>
 
 #  To send XDR statistics to Graphite
-$ python /opt/aerospike/bin/asgraphite -x datacenter1 [dc2 dc3 ...] --start -g <graphite_host> -p <graphite_port>
-or
-$ python /opt/aerospike/bin/asgraphite -x datacenter1 [-x datacenter 2 -x datacenter3 ...] --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -x --start -g <graphite_host> -p <graphite_port>
 
 #  To send SIndex statistics to Graphite
 $ python /opt/aerospike/bin/asgraphite -si --start -g <graphite_host> -p <graphite_port>

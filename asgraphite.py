@@ -398,6 +398,8 @@ class Client(object):
     def info(self, request):
         self.send_request(request)
         res = self.recv_response(timeout=self.timeout)
+        if res.lower().startswith("err"):
+            raise ClientError(res)
         out = re.split("\s+", res, maxsplit=1)
         if len(out) == 2:
             return out[1]
@@ -494,7 +496,7 @@ def dc(client, data, now):
     for dc in dcs:
         r = -1
         r = client.info("dc/"+dc)
-        if( -1 != r):
+        if(-1 != r):
             data = parse(r,parser=pairs())
             for metric, value in data:
                 value = value.replace('true', "1")
@@ -572,18 +574,23 @@ def latency(client, data, now):
 
 def histogram(client, data, now):
     lines = []
-    namespace=''
-    hist_type = ''
-    data = parse(data,parser=seq(delim=':',entry=pair()))
-    cdata = {(k,v) for k,v in data}
-#    print cdata
-    bucket_size = cdata['bucket-width']
-    for index, bucket in enumerate(cdata['buckets'].split(',')):
-        lines.append(GRAPHITE_PATH_PREFIX + ".%s.histogram.%s.%s %s %s" % (namespace, hist_type, "bucket_"  + str(idx), bucket, now))
-
+    namespaces=parse(data,parser=seq())
+    for namespace in namespaces:
+        for hist_type in  ["ttl","object-size-linear"]:
+            r = -1
+            r = client.info("histogram:namespace=%s;type=%s"%(namespace,hist_type))
+            if (-1 != r and 0 != len(r)):
+                hist_data = parse(r, parser=seq(delim=':',entry=pair()))
+                cdata = {k:v for (k,v) in hist_data}
+                if 'bucket-width' not in cdata:
+                    continue
+                bucket_size = cdata['bucket-width']
+                lines.append(GRAPHITE_PATH_PREFIX + ".%s.histogram.%s.%s %s %s" % (namespace, hist_type, "bucketsize", bucket_size, now))
+                for index, bucket in enumerate(cdata['buckets'].split(',')):
+                    lines.append(GRAPHITE_PATH_PREFIX + ".%s.histogram.%s.%s %s %s" % (namespace, hist_type, "bucket_"  + str(index), bucket, now))
     return lines
     
-####
+###
 # Usage :
 ### To send just the latency information to Graphite
 # python asgraphite.py -l 'latency:back=70;duration=60' --start -g s1 -p 2023
@@ -806,6 +813,7 @@ class clGraphiteDaemon(Daemon):
             print data
             print e
             sys.stdout.flush()
+            exit(25)
 
     def run(self):
         if not args.stdout:
@@ -848,9 +856,8 @@ class clGraphiteDaemon(Daemon):
             if args.namespace:
                 msg += self.query(client, 'namespaces', now, namespace)
             if args.hist_dump:
-                for ns in client.info('namespaces').split(';'):
-                    for histo in ["ttl","object-size-linear"]:
-                        msg+=self.query(client, 'histogram:type=%s;namespace=%s' % (histo, ns), now, histogram)
+                temp=self.query(client, 'namespaces', now, histogram)
+                msg += temp
             if args.dc:
                 msg += self.query(client, 'dcs', now, dc)
     ##    Logic to export SIndex Stats to Graphite
