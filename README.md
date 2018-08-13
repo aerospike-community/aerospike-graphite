@@ -13,15 +13,17 @@ sudo pip install -r requirements.txt
 # Usage
 ```bash
 $ python /opt/aerospike/bin/asgraphite --help
-usage: asgraphite.py [-h] [-U USER] [-P [PASSWORD]] [-c CREDENTIALS] [--stop]
-                     [--start] [--restart] [-v] [-n] [-s] [-l LATENCY]
-                     [-x DC [DC ...]] [-g GRAPHITE_SERVER] [-p GRAPHITE_PORT]
+usage: asgraphite.py [-h] [-U USER] [-P [PASSWORD]] [-c CREDENTIALS]
+                     [--stop | --start | --once | --restart] [--stdout] [-v]
+                     [-n] [-s] [-l LATENCY] [-x DC [DC ...]]
+                     [-g GRAPHITE_SERVER] [-p GRAPHITE_PORT]
                      [--interval GRAPHITE_INTERVAL] [--prefix GRAPHITE_PREFIX]
-                     [-i INFO_PORT] [-b BASE_NODE] [-f LOG_FILE] [-si]
-                     [-hi HIST_DUMP [HIST_DUMP ...]] [--tls_enable]
-                     [--tls_encrypt_only] [--tls_keyfile TLS_KEYFILE]
-                     [--tls_certfile TLS_CERTFILE] [--tls_cafile TLS_CAFILE]
-                     [--tls_capath TLS_CAPATH] [--tls_protocols TLS_PROTOCOLS]
+                     [--hostname HOSTNAME] [-i INFO_PORT] [-b BASE_NODE]
+                     [-f LOG_FILE] [-si] [-hi HIST_DUMP [HIST_DUMP ...]]
+                     [--tls_enable] [--tls_encrypt_only]
+                     [--tls_keyfile TLS_KEYFILE] [--tls_certfile TLS_CERTFILE]
+                     [--tls_cafile TLS_CAFILE] [--tls_capath TLS_CAPATH]
+                     [--tls_protocols TLS_PROTOCOLS]
                      [--tls_blacklist TLS_BLACKLIST]
                      [--tls_ciphers TLS_CIPHERS] [--tls_crl] [--tls_crlall]
                      [--tls_name TLS_NAME]
@@ -36,7 +38,10 @@ optional arguments:
                         --user and --password.
   --stop                Stop the Daemon
   --start               Start the Daemon
+  --once                Run the script once
   --restart             Restart the Daemon
+  --stdout              Print metrics output to stdout. Only useful with
+                        --once
   -v, --verbose         Enable verbose logging
   -n, --namespace       Get all namespace statistics
   -s, --sets            Gather set based statistics

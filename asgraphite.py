@@ -19,7 +19,7 @@
 
 __author__ = "Aerospike"
 __copyright__ = "Copyright 2018 Aerospike"
-__version__ = "1.6.3"
+__version__ = "1.6.4"
 
 # Modules
 import argparse
@@ -423,119 +423,100 @@ class Client(object):
 ####
 
 parser = argparse.ArgumentParser()
+group = parser.add_mutually_exclusive_group()
 
 parser.add_argument("-U"
                     , "--user"
                     , help="user name")
-
 parser.add_argument("-P"
                     , "--password"
                     , nargs="?"
                     , const="prompt"
                     , help="password")
-
 parser.add_argument("-c"
                     , "--credentials-file"
                     , dest="credentials"
                     , help="Path to the credentials file. Use this in place of --user and --password.")
-
-parser.add_argument("--stop"
+group.add_argument("--stop"
                     , action="store_true"
                     , dest="stop"
                     , help="Stop the Daemon")
-
-parser.add_argument("--start"
+group.add_argument("--start"
                     , action="store_true"
                     , dest="start"
                     , help="Start the Daemon")
-
-parser.add_argument("--stdout"
-                    , action="store_true"
-                    , dest="stdout"
-                    , help="Print metrics output to stdout")
-
-parser.add_argument("--once"
+group.add_argument("--once"
                     , action="store_true"
                     , dest="once"
                     , help="Run the script once")
-
-parser.add_argument("--restart"
+group.add_argument("--restart"
                     , action="store_true"
                     , dest="restart"
                     , help="Restart the Daemon")
+parser.add_argument("--stdout"
+                    , action="store_true"
+                    , dest="stdout"
+                    , help="Print metrics output to stdout. Only useful with --once")
 parser.add_argument("-v"
                     , "--verbose"
                     , action="store_true"
                     , dest="verbose"
                     , help="Enable verbose logging")
-
 parser.add_argument("-n"
                     , "--namespace"
                     , action="store_true"
                     , dest="namespace"
                     , help="Get all namespace statistics")
-
 parser.add_argument("-s"
                     , "--sets"
                     , action="store_true"
                     , dest="sets"
                     , help="Gather set based statistics")
-
 parser.add_argument("-l"
                     , "--latency"
                     , dest="latency"
                     , help="Enable latency statistics and specify query (ie. latency:back=70;duration=60)")
-
 parser.add_argument("-x"
                     , "--xdr"
                     , nargs='+'
                     , action='append'
                     , dest="dc"
                     , help="Gather XDR datacenter statistics")
-
 parser.add_argument("-g"
                     , "--graphite"
                     , dest="graphite_server"
                     , help="REQUIRED: IP for Graphite server")
-
 parser.add_argument("-p"
                     , "--graphite-port"
                     , dest="graphite_port"
                     , help="REQUIRED: PORT for Graphite server")
-
 parser.add_argument("--interval"
                     , dest="graphite_interval"
                     , default=30
                     , help="How often metrics are sent to graphite (seconds)")
-
 parser.add_argument("--prefix"
                     , dest="graphite_prefix"
                     , default='instances.aerospike.'
                     , help="Prefix used when sending metrics to Graphite server (default: %(default)s)")
-
 parser.add_argument("--hostname"
                     , dest="hostname"
                     , default=socket.gethostname()
                     , help="Hostname used when sending metrics to Graphite server (default: %(default)s)")
-
 parser.add_argument("-i"
                     , "--info-port"
                     , dest="info_port"
                     , default=3000
                     , help="PORT for Aerospike server (default: %(default)s)")
-
 parser.add_argument("-b"
                     , "--base-node"
                     , dest="base_node"
                     , default="127.0.0.1"
                     , help="Base host for collecting stats (default: %(default)s)")
-
 parser.add_argument("-f"
                     , "--log-file"
                     , dest="log_file"
                     , default='/var/log/aerospike/asgraphite.log'
                     , help="Logfile for asgraphite (default: %(default)s)")
-
 parser.add_argument("-si"
                     , "--sindex"
                     , action="store_true"
@@ -547,17 +528,14 @@ parser.add_argument("-hi"
                     , action='append'
                     , dest="hist_dump"
                     , help="Gather histogram data.  Valid args are ttl and objsz")
-
 parser.add_argument("--tls_enable"
                     , action="store_true"
                     , dest="tls_enable"
                     , help="Enable TLS")
-
 parser.add_argument("--tls_encrypt_only"
                     , action="store_true"
                     , dest="tls_encrypt_only"
                     , help="TLS Encrypt Only")
-
 parser.add_argument("--tls_keyfile"
                     , dest="tls_keyfile"
                     , help="The private keyfile for your client TLS Cert")
@@ -666,7 +644,6 @@ class clGraphiteDaemon(Daemon):
                         print "Unable to read credentials file: %s"%args.credentials
                 if user:
                     status = client.auth(user,password)
-                r = client.info('statistics')
             except Exception as e:
                 print "Unable to connect to aerospike"
                 print e
@@ -674,6 +651,7 @@ class clGraphiteDaemon(Daemon):
                 time.sleep(INTERVAL)
                 continue
             try:
+                r = client.info('statistics')
                 if (-1 != r):
                     lines = []
                     for string in r.split(';'):
@@ -750,9 +728,10 @@ class clGraphiteDaemon(Daemon):
                                 latency_type = ""
                                 header = []
                         msg.extend(lines)
-                except:
+                except Exception as e:
                     print "Unable to parse latency stats:"
                     print r
+                    print e
                     sys.stdout.flush()
 
             if args.namespace:
@@ -801,9 +780,10 @@ class clGraphiteDaemon(Daemon):
                                             print "Failure to get histtype " + histtype + ":"
                                             print r
                                             sys.stdout.flush()
-                except:
+                except Exception as e:
                     print "Unable to parse namespace list:"
                     print r
+                    print e
                     sys.stdout.flush()
     
             if args.dc:
@@ -832,9 +812,10 @@ class clGraphiteDaemon(Daemon):
                                 value = value.replace('WINDOW_SHIPPER',"3")
                                 lines.append("%s.xdr.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, DC, name, value, now))
                             msg.extend(lines)
-                    except:
+                    except Exception as e:
                         print "Unable to parse DC stats:"
                         print r
+                        print e
                         sys.stdout.flush()
     
     ##    Logic to export SIndex Stats to Graphite
@@ -883,9 +864,10 @@ class clGraphiteDaemon(Daemon):
                                             value = value.replace('true', "1")
                                             lines.append("%s.sindexes.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], name, value, now))
                             msg.extend(lines)
-                except:
+                except Exception as e:
                     print "Unable to parse sindex stats:"
                     print r
+                    print e
                     sys.stdout.flush()
             nmsg = ''
             #AER-2098 move all non numeric values to numbers
