@@ -807,7 +807,10 @@ class clGraphiteDaemon(Daemon):
         data = -1
         try:
             data = client.info(metric)
-            return function(client,data,time)
+            if data:
+                 return function(client,data,time)
+            else:
+                 return ""
         except Exception as e:
             print "Unable to parse %s:" % metric
             print data
