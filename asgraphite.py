@@ -521,7 +521,8 @@ def namespace(client, data, now):
             for metric, value in data:
                 value = value.replace('false', "0")
                 value = value.replace('true', "1")
-                lines.append("%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, namespace, metric, value, now))
+                sanitizedmetric = metric.replace('[','').replace(']','')
+                lines.append("%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, namespace, sanitizedmetric, value, now))
     return lines
 
 def sindex(client, data, now):
