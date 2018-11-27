@@ -16,6 +16,7 @@ sudo pip install -r requirements.txt
 ### Getting Started
 1. Copy asgraphite.py to /opt/aerospike/bin/asgraphite
     > The script requires python version 2.6+.
+    
     > The script requires python argparse, bcrypt (if using auth), pyOpenSSL (if using SSL/TLS).
 1. Ensure the aerospike log directory exists. /var/log/aerospike/
 1. Issue the aerospike Graphite command
