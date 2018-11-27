@@ -1,16 +1,26 @@
 # Aerospike Graphite
-## Description
+
+## Introduction
 This repositiory provides the asgraphite connector to connect Aerospike with Graphite.
 
-This script is included with the **aerospike-tools** package which is bundled
-with the Aerospike server package and is installed into`/opt/aerospike/bin/asgraphite`.
+The asgraphite.py script simplifies graphite configurations for Aerospike clusters. 
+The goal is to reduce the complexity to 3 simple steps.
 
-# Install
+## Features
+
+### Requirements
 ```bash
 sudo pip install -r requirements.txt
 ```
 
-# Usage
+### Getting Started
+1. Copy asgraphite.py to /opt/aerospike/bin/asgraphite
+    > The script requires python version 2.6+.
+    > The script requires python argparse, bcrypt (if using auth), pyOpenSSL (if using SSL/TLS).
+1. Ensure the aerospike log directory exists. /var/log/aerospike/
+1. Issue the aerospike Graphite command
+
+### Usage
 ```bash
 $ python /opt/aerospike/bin/asgraphite --help
 usage: asgraphite.py [-h] [-U USER] [-P [PASSWORD]] [-c CREDENTIALS]
