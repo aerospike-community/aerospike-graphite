@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 # Description: Graphite connector for Aerospike
+from __future__ import print_function
 
 
 __author__ = "Aerospike"
@@ -46,7 +47,7 @@ class Pidfile(object):
     def __init__(self, pidfile, procname):
         try:
             self.fd = os.open(pidfile, os.O_CREAT | os.O_RDWR)
-        except IOError, e:
+        except IOError as e:
             sys.exit("Failed to open pidfile: %s" % str(e))
         self.pidfile = pidfile
         self.procname = procname
@@ -67,7 +68,7 @@ class Pidfile(object):
         try:
             os.kill(pid, SIGTERM)
             time.sleep(0.1)
-        except OSError, err:
+        except OSError as err:
             err = str(err)
             if err.find("No such process") > 0:
                     os.remove(self.pidfile)
@@ -106,6 +107,7 @@ class Daemon:
         self.stdout = logfile
         self.stderr = logfile
         self.pidfile = Pidfile(pidfile, "python")
+        self.pidfileloc = pidfile
 
     def daemonize(self):
         """
@@ -118,7 +120,7 @@ class Daemon:
             if pid > 0:
                 # exit first parent
                 sys.exit(0)
-        except OSError, e:
+        except OSError as e:
             sys.stderr.write("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
             sys.exit(1)
 
@@ -133,16 +135,16 @@ class Daemon:
             if pid > 0:
                 # exit from second parent
                 sys.exit(0)
-        except OSError, e:
+        except OSError as e:
             sys.stderr.write("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
             sys.exit(1)
 
         # redirect standard file descriptors
         sys.stdout.flush()
         sys.stderr.flush()
-        si = file(self.stdin, 'r')
-        so = file(self.stdout, 'a+')
-        se = file(self.stderr, 'a+', 0)
+        si = open(self.stdin, 'r')
+        so = open(self.stdout, 'a+')
+        se = open(self.stderr, 'a+', 0)
         os.dup2(si.fileno(), sys.stdin.fileno())
         os.dup2(so.fileno(), sys.stdout.fileno())
         os.dup2(se.fileno(), sys.stderr.fileno())
@@ -153,7 +155,7 @@ class Daemon:
         self.pidfile.write(pid)
 
     def delpid(self):
-        os.remove(self.pidfile)
+        os.remove(self.pidfileloc)
 
     def start(self):
         """
@@ -176,7 +178,7 @@ class Daemon:
         # Get the pid from the pidfile
         if not self.pidfile.is_running():
             self.pidfile.unlock()
-            print >> sys.stderr, "Daemon not running."
+            print("Daemon not running.", file=sys.stderr)
             return
 
         # Try killing the daemon process
@@ -266,7 +268,7 @@ class Client(object):
             except socket.error as msg:
                 s.close()
                 s = None
-                print "Connect Error %s" % msg
+                print("Connect Error %s" % msg)
                 continue
             break
 
@@ -485,11 +487,8 @@ parser.add_argument("-x"
 parser.add_argument("-g"
                     , "--graphite"
                     , dest="graphite_server"
-                    , help="REQUIRED: IP for Graphite server")
-parser.add_argument("-p"
-                    , "--graphite-port"
-                    , dest="graphite_port"
-                    , help="REQUIRED: PORT for Graphite server")
+                    , action="append"
+                    , help="REQUIRED: IP:PORT for Graphite server. This argument can be specified multiple times to send to multiple servers")
 parser.add_argument("--interval"
                     , dest="graphite_interval"
                     , default=30
@@ -586,17 +585,21 @@ if args.user != None:
 LOGFILE = args.log_file
 
 if not args.stop and not args.stdout:
-    if args.graphite_server:
-        GRAPHITE_SERVER = args.graphite_server
+    if args.graphite_server and len(args.graphite_server) > 0:
+        GRAPHITE_SERVERS = args.graphite_server
+        for gs in GRAPHITE_SERVERS:
+            gsgp = gs.split(":")
+            if len(gsgp) != 2:
+                parser.print_help()
+                sys.exit(200)
+            try:
+                int(gsgp[1])
+            except:
+                parser.print_help()
+                sys.exit(200)
     else:
         parser.print_help()
         sys.exit(200)
-
-    if args.graphite_port:
-        GRAPHITE_PORT = int(args.graphite_port)
-    else:
-        parser.print_help()
-        sys.exit(3)
 
 AEROSPIKE_SERVER = args.base_node
 AEROSPIKE_PORT = args.info_port
@@ -606,15 +609,15 @@ GRAPHITE_PATH_PREFIX = args.graphite_prefix + AEROSPIKE_SERVER_ID
 INTERVAL = int(args.graphite_interval)
 
 class clGraphiteDaemon(Daemon):
-    def connect(self):
+    def connect(self, gs, gp):
         GRAPHITE_RUNNING = False
         while GRAPHITE_RUNNING is not True:
             try:
                 s = socket.socket()
-                s.connect((GRAPHITE_SERVER, GRAPHITE_PORT))
+                s.connect((gs, gp))
                 GRAPHITE_RUNNING = True
             except:
-                print "unable to connect to Graphite server on %s:%d" % (GRAPHITE_SERVER, GRAPHITE_PORT)
+                print("unable to connect to Graphite server on %s:%d" % (gs, gp))
                 s.close()
                 sys.stdout.flush()
                 time.sleep(INTERVAL)
@@ -622,9 +625,12 @@ class clGraphiteDaemon(Daemon):
 
     def run(self):
         if not args.stdout:
-            print "Starting asgraphite daemon" , time.asctime(time.localtime())
-            s = self.connect()
-            print "Aerospike-Graphite connector started: ", time.asctime(time.localtime())
+            print("Starting asgraphite daemon" , time.asctime(time.localtime()))
+            s = []
+            for gs in GRAPHITE_SERVERS:
+                gsa = gs.split(":")
+                s.append({"ip":gsa[0],"port":int(gsa[1]),"s":self.connect(gsa[0],int(gsa[1]))})
+            print("Aerospike-Graphite connector started: ", time.asctime(time.localtime()))
             sys.stdout.flush()
         while True:
             msg = []
@@ -641,12 +647,12 @@ class clGraphiteDaemon(Daemon):
                         user = cred_file.readline().strip()
                         password = cred_file.readline().strip()
                     except IOError:
-                        print "Unable to read credentials file: %s"%args.credentials
+                        print("Unable to read credentials file: %s"%args.credentials)
                 if user:
                     status = client.auth(user,password)
             except Exception as e:
-                print "Unable to connect to aerospike"
-                print e
+                print("Unable to connect to aerospike")
+                print(e)
                 sys.stdout.flush()
                 time.sleep(INTERVAL)
                 continue
@@ -667,8 +673,8 @@ class clGraphiteDaemon(Daemon):
                         lines.append("%s.service.%s %s %s" % (GRAPHITE_PATH_PREFIX, name, value, now))
                     msg.extend(lines)
             except:
-                print "Unable to parse general stats:"
-                print r        # not combined with above line because 'r' could be int (-1) or string
+                print("Unable to parse general stats:")
+                print(r)        # not combined with above line because 'r' could be int (-1) or string
                 sys.stdout.flush()
             if args.sets:
                 r = -1
@@ -688,9 +694,9 @@ class clGraphiteDaemon(Daemon):
                                 lines.append("%s.sets.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, namespace[1], sets[1], key, value, now))
                         msg.extend(lines)
                 except Exception as e:
-                    print "Unable to parse set stats:"
-                    print r
-                    print e
+                    print("Unable to parse set stats:")
+                    print(r)
+                    print(e)
                     sys.stdout.flush()
             if args.latency:
                 r = -1
@@ -729,9 +735,9 @@ class clGraphiteDaemon(Daemon):
                                 header = []
                         msg.extend(lines)
                 except Exception as e:
-                    print "Unable to parse latency stats:"
-                    print r
-                    print e
+                    print("Unable to parse latency stats:")
+                    print(r)
+                    print(e)
                     sys.stdout.flush()
 
             if args.namespace:
@@ -740,7 +746,7 @@ class clGraphiteDaemon(Daemon):
                     r = client.info('namespaces')
                     if (-1 != r):
                         r = r.strip()
-                        namespaces = filter(None, r.split(';'))
+                        namespaces = list(filter(None, r.split(';')))
                         if len(namespaces) > 0:
                             for namespace in namespaces:
                                 r = -1
@@ -753,7 +759,7 @@ class clGraphiteDaemon(Daemon):
                                         value = value.replace('false', "0")
                                         value = value.replace('true', "1")
                                         lines.append(GRAPHITE_PATH_PREFIX + "." + namespace + ".%s %s %s" % (name, value, now))
-                                msg.extend(lines)
+                                    msg.extend(lines)
                                 if args.hist_dump:
                                     # Flatten the list
                                     HD = [ item for sublist in args.hist_dump for item in sublist]
@@ -777,13 +783,13 @@ class clGraphiteDaemon(Daemon):
                                                     bucket+=1
                                                 msg.extend(lines)
                                         except:
-                                            print "Failure to get histtype " + histtype + ":"
-                                            print r
+                                            print("Failure to get histtype " + histtype + ":")
+                                            print(r)
                                             sys.stdout.flush()
                 except Exception as e:
-                    print "Unable to parse namespace list:"
-                    print r
-                    print e
+                    print("Unable to parse namespace list:")
+                    print(r)
+                    print(e)
                     sys.stdout.flush()
     
             if args.dc:
@@ -813,9 +819,9 @@ class clGraphiteDaemon(Daemon):
                                 lines.append("%s.xdr.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, DC, name, value, now))
                             msg.extend(lines)
                     except Exception as e:
-                        print "Unable to parse DC stats:"
-                        print r
-                        print e
+                        print("Unable to parse DC stats:")
+                        print(r)
+                        print(e)
                         sys.stdout.flush()
     
     ##    Logic to export SIndex Stats to Graphite
@@ -831,7 +837,7 @@ class clGraphiteDaemon(Daemon):
                     r = client.info('sindex')
                     if (-1 != r):
                         r = r.strip()
-                        indexes = filter(None, r)
+                        indexes = str(filter(None, r))
                         if len(indexes) > 0:
                             lines = []
                             for index_line in indexes.split(';'):
@@ -853,7 +859,7 @@ class clGraphiteDaemon(Daemon):
     
                                     r = -1
                                     try:
-                                        r = client.info('sindex/' + index['ns'] + '/' + index['indexname'])
+                                        r = client.info('sindex/' + index["ns"] + '/' + index["indexname"])
                                     except:
                                         pass
                                     if (-1 != r):
@@ -865,9 +871,9 @@ class clGraphiteDaemon(Daemon):
                                             lines.append("%s.sindexes.%s.%s.%s %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], name, value, now))
                             msg.extend(lines)
                 except Exception as e:
-                    print "Unable to parse sindex stats:"
-                    print r
-                    print e
+                    print("Unable to parse sindex stats:")
+                    print(r)
+                    print(e)
                     sys.stdout.flush()
             nmsg = ''
             #AER-2098 move all non numeric values to numbers
@@ -900,18 +906,18 @@ class clGraphiteDaemon(Daemon):
                     line += f + ' '
                 nmsg += line.strip('.') + '\n'
             if not args.stdout:
-                try:
-                    if args.verbose:
-                        print nmsg
-                    s.sendall(nmsg)
-                except:
-                    #Once the connection is broken, we need to reconnect
-                    print "ERROR: Unable to send to graphite server, retrying connection.."
-                    sys.stdout.flush()
-                    s.close()
-                    s = self.connect()
+                if args.verbose:
+                    print(nmsg)
+                for s_idx,s_sock in enumerate(s):
+                    try:
+                        s_sock["s"].sendall(nmsg)
+                    except:
+                        print("ERROR: Unable to send to graphite server %s:%d, retrying connection.." %(s_sock["ip"],s_sock["port"]))
+                        sys.stdout.flush()
+                        s_sock["s"].close()
+                        s[s_idx]["s"] = self.connect(s_sock["ip"],s_sock["port"])
             else:
-                print nmsg
+                print(nmsg)
             client.close()
             if args.once:
                 break
@@ -930,7 +936,7 @@ if __name__ == "__main__":
         elif args.once:
             daemon.once()
         else:
-            print "Unknown command"
+            print("Unknown command")
             sys.exit(20)
         sys.exit(0)
     else:
