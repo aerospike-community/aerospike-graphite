@@ -15,11 +15,12 @@
 # limitations under the License.
 #
 # Description: Graphite connector for Aerospike
+from __future__ import print_function
 
 
 __author__ = "Aerospike"
 __copyright__ = "Copyright 2018 Aerospike"
-__version__ = "1.7.0"
+__version__ = "1.7.1"
 
 # Modules
 import argparse
@@ -46,7 +47,7 @@ class Pidfile(object):
     def __init__(self, pidfile, procname):
         try:
             self.fd = os.open(pidfile, os.O_CREAT | os.O_RDWR)
-        except IOError, e:
+        except IOError as e:
             sys.exit("Failed to open pidfile: %s" % str(e))
         self.pidfile = pidfile
         self.procname = procname
@@ -67,7 +68,7 @@ class Pidfile(object):
         try:
             os.kill(pid, SIGTERM)
             time.sleep(0.1)
-        except OSError, err:
+        except OSError as err:
             err = str(err)
             if err.find("No such process") > 0:
                     os.remove(self.pidfile)
@@ -106,6 +107,7 @@ class Daemon:
         self.stdout = logfile
         self.stderr = logfile
         self.pidfile = Pidfile(pidfile, "python")
+        self.pidfileloc = pidfile
 
     def daemonize(self):
         """
@@ -118,7 +120,7 @@ class Daemon:
             if pid > 0:
                 # exit first parent
                 sys.exit(0)
-        except OSError, e:
+        except OSError as e:
             sys.stderr.write("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
             sys.exit(1)
 
@@ -133,16 +135,16 @@ class Daemon:
             if pid > 0:
                 # exit from second parent
                 sys.exit(0)
-        except OSError, e:
+        except OSError as e:
             sys.stderr.write("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
             sys.exit(1)
 
         # redirect standard file descriptors
         sys.stdout.flush()
         sys.stderr.flush()
-        si = file(self.stdin, 'r')
-        so = file(self.stdout, 'a+')
-        se = file(self.stderr, 'a+', 0)
+        si = open(self.stdin, 'r')
+        so = open(self.stdout, 'a+')
+        se = open(self.stderr, 'a+', 0)
         os.dup2(si.fileno(), sys.stdin.fileno())
         os.dup2(so.fileno(), sys.stdout.fileno())
         os.dup2(se.fileno(), sys.stderr.fileno())
@@ -153,7 +155,7 @@ class Daemon:
         self.pidfile.write(pid)
 
     def delpid(self):
-        os.remove(self.pidfile)
+        os.remove(self.pidfileloc)
 
     def start(self):
         """
@@ -176,7 +178,7 @@ class Daemon:
         # Get the pid from the pidfile
         if not self.pidfile.is_running():
             self.pidfile.unlock()
-            print >> sys.stderr, "Daemon not running."
+            print("Daemon not running.", file=sys.stderr)
             return
 
         # Try killing the daemon process
@@ -266,7 +268,7 @@ class Client(object):
             except socket.error as msg:
                 s.close()
                 s = None
-                print "Connect Error %s" % msg
+                print("Connect Error %s" % msg)
                 continue
             break
 
@@ -668,12 +670,9 @@ parser.add_argument("-x"
                     , help="Gather XDR datacenter statistics")
 parser.add_argument("-g"
                     , "--graphite"
+                    , action="append"
                     , dest="graphite_server"
-                    , help="REQUIRED: IP for Graphite server")
-parser.add_argument("-p"
-                    , "--graphite-port"
-                    , dest="graphite_port"
-                    , help="REQUIRED: PORT for Graphite server")
+                    , help="REQUIRED: IP:PORT for Graphite server. This argument can be specified multiple times to send to multiple servers")
 parser.add_argument("--interval"
                     , dest="graphite_interval"
                     , default=30
@@ -769,17 +768,23 @@ if args.user != None:
 LOGFILE = args.log_file
 
 if not args.stop and not args.stdout:
-    if args.graphite_server:
-        GRAPHITE_SERVER = args.graphite_server
+    if args.graphite_server and len(args.graphite_server) > 0:
+#        GRAPHITE_SERVER = args.graphite_server
+        GRAPHITE_SERVERS = args.graphite_server
+        for gs in GRAPHITE_SERVERS:
+            ip_port = gs.split(":")
+            if len(ip_port) != 2:
+                parser.print_help()
+                sys.exit(200)
+            try:
+                int(ip_port[1])
+            except:
+                parser.print_help()
+                sys.exit(200)
     else:
         parser.print_help()
         sys.exit(200)
 
-    if args.graphite_port:
-        GRAPHITE_PORT = int(args.graphite_port)
-    else:
-        parser.print_help()
-        sys.exit(3)
 
 AEROSPIKE_SERVER = args.base_node
 AEROSPIKE_PORT = args.info_port
@@ -789,15 +794,16 @@ GRAPHITE_PATH_PREFIX = args.graphite_prefix + AEROSPIKE_SERVER_ID
 INTERVAL = int(args.graphite_interval)
 
 class clGraphiteDaemon(Daemon):
-    def connect(self):
+    def connect(self, server, port):
         GRAPHITE_RUNNING = False
         while GRAPHITE_RUNNING is not True:
             try:
                 s = socket.socket()
-                s.connect((GRAPHITE_SERVER, GRAPHITE_PORT))
+                #s.connect((GRAPHITE_SERVER, GRAPHITE_PORT))
+                s.connect((server,port))
                 GRAPHITE_RUNNING = True
             except:
-                print "unable to connect to Graphite server on %s:%d" % (GRAPHITE_SERVER, GRAPHITE_PORT)
+                print("unable to connect to Graphite server on %s:%d" % (server, port))
                 s.close()
                 sys.stdout.flush()
                 time.sleep(INTERVAL)
@@ -813,17 +819,22 @@ class clGraphiteDaemon(Daemon):
             else:
                  return ""
         except Exception as e:
-            print "Unable to parse %s:" % metric
-            print data
-            print e
+            print("Unable to parse %s:" % metric)
+            print(data)
+            print(e)
             sys.stdout.flush()
             exit(25)
 
     def run(self):
         if not args.stdout:
-            print "Starting asgraphite daemon" , time.asctime(time.localtime())
-            s = self.connect()
-            print "Aerospike-Graphite connector started: ", time.asctime(time.localtime())
+            print("Starting asgraphite daemon" , time.asctime(time.localtime()))
+            #s = self.connect()
+            s = []
+            for server in GRAPHITE_SERVERS:
+                address = server.split(":")
+                #s.append({"ip":address[0], "port":int(address[1]), "s":self.connect(address[0],int(address[1]))})
+                s.append(self.connect(address[0],int(address[1])))
+            print("Aerospike-Graphite connector started: ", time.asctime(time.localtime()))
             sys.stdout.flush()
         while True:
             msg = []
@@ -840,12 +851,12 @@ class clGraphiteDaemon(Daemon):
                         user = cred_file.readline().strip()
                         password = cred_file.readline().strip()
                     except IOError:
-                        print "Unable to read credentials file: %s"%args.credentials
+                        print("Unable to read credentials file: %s" % args.credentials)
                 if user:
                     status = client.auth(user,password)
             except Exception as e:
-                print "Unable to connect to aerospike"
-                print e
+                print("Unable to connect to aerospike")
+                print(e)
                 sys.stdout.flush()
                 time.sleep(INTERVAL)
                 continue
@@ -903,18 +914,20 @@ class clGraphiteDaemon(Daemon):
                     line += f + ' '
                 nmsg += line.strip('.') + '\n'
             if not args.stdout:
-                try:
-                    if args.verbose:
-                        print nmsg
-                    s.sendall(nmsg)
-                except:
-                    #Once the connection is broken, we need to reconnect
-                    print "ERROR: Unable to send to graphite server, retrying connection.."
-                    sys.stdout.flush()
-                    s.close()
-                    s = self.connect()
+                if args.verbose:
+                    print(nmsg)
+                for socket in s:
+                    try:
+                        socket.sendall(nmsg)
+                    except:
+                        #Once the connection is broken, we need to reconnect
+                        (ip, port) = socket.getpeername()
+                        print("ERROR: Unable to send to graphite server %s:%d, retrying connection.." % (ip, port))
+                        sys.stdout.flush()
+                        socket.close()
+                        socket = self.connect(ip,port)
             else:
-                print nmsg
+                print(nmsg)
             client.close()
             if args.once:
                 break
@@ -933,7 +946,7 @@ if __name__ == "__main__":
         elif args.once:
             daemon.once()
         else:
-            print "Unknown command"
+            print("Unknown command")
             sys.exit(20)
         sys.exit(0)
     else:

@@ -24,17 +24,15 @@ sudo pip install -r requirements.txt
 
 # Usage
 ```bash
-$ python /opt/aerospike/bin/asgraphite --help
 usage: asgraphite.py [-h] [-U USER] [-P [PASSWORD]] [-c CREDENTIALS]
                      [--stop | --start | --once | --restart] [--stdout] [-v]
                      [-n] [-s] [-l LATENCY] [-x] [-g GRAPHITE_SERVER]
-                     [-p GRAPHITE_PORT] [--interval GRAPHITE_INTERVAL]
-                     [--prefix GRAPHITE_PREFIX] [--hostname HOSTNAME]
-                     [-i INFO_PORT] [-b BASE_NODE] [-f LOG_FILE] [-si] [-hi]
-                     [--tls_enable] [--tls_encrypt_only]
-                     [--tls_keyfile TLS_KEYFILE] [--tls_certfile TLS_CERTFILE]
-                     [--tls_cafile TLS_CAFILE] [--tls_capath TLS_CAPATH]
-                     [--tls_protocols TLS_PROTOCOLS]
+                     [--interval GRAPHITE_INTERVAL] [--prefix GRAPHITE_PREFIX]
+                     [--hostname HOSTNAME] [-i INFO_PORT] [-b BASE_NODE]
+                     [-f LOG_FILE] [-si] [-hi] [--tls_enable]
+                     [--tls_encrypt_only] [--tls_keyfile TLS_KEYFILE]
+                     [--tls_certfile TLS_CERTFILE] [--tls_cafile TLS_CAFILE]
+                     [--tls_capath TLS_CAPATH] [--tls_protocols TLS_PROTOCOLS]
                      [--tls_blacklist TLS_BLACKLIST]
                      [--tls_ciphers TLS_CIPHERS] [--tls_crl] [--tls_crlall]
                      [--tls_name TLS_NAME]
@@ -61,16 +59,16 @@ optional arguments:
                         latency:back=70;duration=60)
   -x, --xdr             Gather XDR datacenter statistics
   -g GRAPHITE_SERVER, --graphite GRAPHITE_SERVER
-                        REQUIRED: IP for Graphite server
-  -p GRAPHITE_PORT, --graphite-port GRAPHITE_PORT
-                        REQUIRED: PORT for Graphite server
+                        REQUIRED: IP:PORT for Graphite server. This argument
+                        can be specified multiple times to send to multiple
+                        servers
   --interval GRAPHITE_INTERVAL
                         How often metrics are sent to graphite (seconds)
   --prefix GRAPHITE_PREFIX
                         Prefix used when sending metrics to Graphite server
                         (default: instances.aerospike.)
   --hostname HOSTNAME   Hostname used when sending metrics to Graphite server
-                        (default: $hostname)
+                        (default: ubuntu)
   -i INFO_PORT, --info-port INFO_PORT
                         PORT for Aerospike server (default: 3000)
   -b BASE_NODE, --base-node BASE_NODE
@@ -79,7 +77,7 @@ optional arguments:
                         Logfile for asgraphite (default:
                         /var/log/aerospike/asgraphite.log)
   -si, --sindex         Gather sindex based statistics
-  -hi, --hist-dump      Gather histogram data. 
+  -hi, --hist-dump      Gather histogram data. Valid args are ttl and objsz
   --tls_enable          Enable TLS
   --tls_encrypt_only    TLS Encrypt Only
   --tls_keyfile TLS_KEYFILE
@@ -118,38 +116,41 @@ Usage :
 $ python /opt/aerospike/bin/asgraphite --once --stdout
 
 #  To send just the (using defaults) latency information to Graphite
-$ python /opt/aerospike/bin/asgraphite -l 'latency:' --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -l 'latency:' --start -g <graphite_host:graphite_port>
 
 #  To send namespace stats to Graphite
-$ python /opt/aerospike/bin/asgraphite -n --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -n --start -g <graphite_host:graphite_port>
 
 #  To send the latency information of custom duration to Graphite.
 #  This would go back 70 seconds and send latency, set and namespace data to the Graphite server for 60 seconds worth of data.
-$ python /opt/aerospike/bin/asgraphite -n -l 'latency:back=70;duration=60' --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -n -l 'latency:back=70;duration=60' --start -g <graphite_host:graphite_port>
 
 #  To send just the statistics information to Graphite
-$ python /opt/aerospike/bin/asgraphite --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite --start -g <graphite_host:graphite_port>
 
 #  To send sets info to Graphite
-$ python /opt/aerospike/bin/asgraphite -s --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -s --start -g <graphite_host:graphite_port>
 
 #  To send XDR statistics to Graphite
-$ python /opt/aerospike/bin/asgraphite -x --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -x --start -g <graphite_host:graphite_port>
 
 #  To send SIndex statistics to Graphite
-$ python /opt/aerospike/bin/asgraphite -si --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -si --start -g <graphite_host:graphite_port>
 
 # You can use multiple options in a single command
-$ python /opt/aerospike/bin/asgraphite -si -l 'latency:' --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -si -l 'latency:' --start -g <graphite_host:graphite_port>
 
 #  To Stop the Daemon
 $ python /opt/aerospike/bin/asgraphite --stop
 
 #  To run with SSL/TLS encrypt only
-$ python /opt/aerospike/bin/asgraphite -n --tls_enable --tls_encrypt_only true --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -n --tls_enable --tls_encrypt_only true --start -g <graphite_host:graphite_port>
 
 #  To run with SSL/TLS authenticate server
-$ python /opt/aerospike/bin/asgraphite -n --tls_enable --tls_cafile /path/to/CA/root.pem --tls_name <server name on cert> --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -n --tls_enable --tls_cafile /path/to/CA/root.pem --tls_name <server name on cert> --start -g <graphite_host:graphite_port>
+
+#  To send metrics to multiple graphite servers:
+$ python /opt/aerospike/bin/asgraphite --start -g <graphite1:port1> -g <graphite2:port2> ... 
 ```
 
 Add the asgraphite monitoring commands to `/etc/rc.local` to automatically start
