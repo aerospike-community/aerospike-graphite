@@ -20,7 +20,7 @@ from __future__ import print_function
 
 __author__ = "Aerospike"
 __copyright__ = "Copyright 2018 Aerospike"
-__version__ = "1.6.4"
+__version__ = "1.6.5"
 
 # Modules
 import argparse
