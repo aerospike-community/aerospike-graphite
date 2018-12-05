@@ -15,26 +15,22 @@ sudo pip install -r requirements.txt
 
 ### Getting Started
 1. Copy asgraphite.py to /opt/aerospike/bin/asgraphite
-    > The script requires python version 2.6+.
-    
     > The script requires python argparse, bcrypt (if using auth), pyOpenSSL (if using SSL/TLS).
 1. Ensure the aerospike log directory exists. /var/log/aerospike/
 1. Issue the aerospike Graphite command
 
 ### Usage
 ```bash
-$ python /opt/aerospike/bin/asgraphite --help
 usage: asgraphite.py [-h] [-U USER] [-P [PASSWORD]] [-c CREDENTIALS]
                      [--stop | --start | --once | --restart] [--stdout] [-v]
                      [-n] [-s] [-l LATENCY] [-x DC [DC ...]]
-                     [-g GRAPHITE_SERVER] [-p GRAPHITE_PORT]
-                     [--interval GRAPHITE_INTERVAL] [--prefix GRAPHITE_PREFIX]
-                     [--hostname HOSTNAME] [-i INFO_PORT] [-b BASE_NODE]
-                     [-f LOG_FILE] [-si] [-hi HIST_DUMP [HIST_DUMP ...]]
-                     [--tls_enable] [--tls_encrypt_only]
-                     [--tls_keyfile TLS_KEYFILE] [--tls_certfile TLS_CERTFILE]
-                     [--tls_cafile TLS_CAFILE] [--tls_capath TLS_CAPATH]
-                     [--tls_protocols TLS_PROTOCOLS]
+                     [-g GRAPHITE_SERVER] [--interval GRAPHITE_INTERVAL]
+                     [--prefix GRAPHITE_PREFIX] [--hostname HOSTNAME]
+                     [-i INFO_PORT] [-b BASE_NODE] [-f LOG_FILE] [-si]
+                     [-hi HIST_DUMP [HIST_DUMP ...]] [--tls_enable]
+                     [--tls_encrypt_only] [--tls_keyfile TLS_KEYFILE]
+                     [--tls_certfile TLS_CERTFILE] [--tls_cafile TLS_CAFILE]
+                     [--tls_capath TLS_CAPATH] [--tls_protocols TLS_PROTOCOLS]
                      [--tls_blacklist TLS_BLACKLIST]
                      [--tls_ciphers TLS_CIPHERS] [--tls_crl] [--tls_crlall]
                      [--tls_name TLS_NAME]
@@ -62,14 +58,16 @@ optional arguments:
   -x DC [DC ...], --xdr DC [DC ...]
                         Gather XDR datacenter statistics
   -g GRAPHITE_SERVER, --graphite GRAPHITE_SERVER
-                        REQUIRED: IP for Graphite server
-  -p GRAPHITE_PORT, --graphite-port GRAPHITE_PORT
-                        REQUIRED: PORT for Graphite server
+                        REQUIRED: IP:PORT for Graphite server. This argument
+                        can be specified multiple times to send to multiple
+                        servers
   --interval GRAPHITE_INTERVAL
                         How often metrics are sent to graphite (seconds)
   --prefix GRAPHITE_PREFIX
                         Prefix used when sending metrics to Graphite server
                         (default: instances.aerospike.)
+  --hostname HOSTNAME   Hostname used when sending metrics to Graphite server
+                        (default: ubuntu)
   -i INFO_PORT, --info-port INFO_PORT
                         PORT for Aerospike server (default: 3000)
   -b BASE_NODE, --base-node BASE_NODE
@@ -115,40 +113,44 @@ For example, to start <strong>asgraphite</strong> daemon, you might issue a comm
 Usage :
 
 #  To send just the (using defaults) latency information to Graphite
-$ python /opt/aerospike/bin/asgraphite -l 'latency:' --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -l 'latency:' --start -g <graphite_host:graphite_port>
 
 #  To send namespace stats to Graphite
-$ python /opt/aerospike/bin/asgraphite -n --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -n --start -g <graphite_host:graphite_port>
 
 #  To send the latency information of custom duration to Graphite.
 #  This would go back 70 seconds and send latency, set and namespace data to the Graphite server for 60 seconds worth of data.
-$ python /opt/aerospike/bin/asgraphite -n -l 'latency:back=70;duration=60' --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -n -l 'latency:back=70;duration=60' --start -g <graphite_host:graphite_port>
 
 #  To send just the statistics information to Graphite
-$ python /opt/aerospike/bin/asgraphite --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite --start -g <graphite_host:graphite_port>
 
 #  To send sets info to Graphite
-$ python /opt/aerospike/bin/asgraphite -s --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -s --start -g <graphite_host:graphite_port>
 
 #  To send XDR statistics to Graphite
-$ python /opt/aerospike/bin/asgraphite -x datacenter1 [dc2 dc3 ...] --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -x datacenter1 [dc2 dc3 ...] --start -g <graphite_host:graphite_port>
 or
-$ python /opt/aerospike/bin/asgraphite -x datacenter1 [-x datacenter 2 -x datacenter3 ...] --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -x datacenter1 [-x datacenter 2 -x datacenter3 ...] --start -g <graphite_host:graphite_port>
 
 #  To send SIndex statistics to Graphite
-$ python /opt/aerospike/bin/asgraphite -si --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -si --start -g <graphite_host:graphite_port>
 
 # You can use multiple options in a single command
-$ python /opt/aerospike/bin/asgraphite -si -l 'latency:' --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -si -l 'latency:' --start -g <graphite_host:graphite_port>
 
 #  To Stop the Daemon
 $ python /opt/aerospike/bin/asgraphite --stop
 
 #  To run with SSL/TLS encrypt only
-$ python /opt/aerospike/bin/asgraphite -n --tls_enable --tls_encrypt_only true --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -n --tls_enable --tls_encrypt_only true --start -g <graphite_host:graphite_port>
 
 #  To run with SSL/TLS authenticate server
-$ python /opt/aerospike/bin/asgraphite -n --tls_enable --tls_cafile /path/to/CA/root.pem --tls_name <server name on cert> --start -g <graphite_host> -p <graphite_port>
+$ python /opt/aerospike/bin/asgraphite -n --tls_enable --tls_cafile /path/to/CA/root.pem --tls_name <server name on cert> --start -g <graphite_host:graphite_port>
+
+#  To ship to multiple destinations:
+$ python /opt/aerospike/bin/asgraphite --start -g <graphite_host1:graphite_port1> -g <graphite_host2:graphite_port2> ...
+
 ```
 
 Add the asgraphite monitoring commands to `/etc/rc.local` to automatically start
