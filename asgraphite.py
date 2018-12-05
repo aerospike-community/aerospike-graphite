@@ -361,7 +361,7 @@ class Client(object):
         offset = STRUCT_PROTO.size
 
         fmt = "! %ds" % len(request)
-        struct.pack_into(fmt, buf, offset, request)
+        struct.pack_into(fmt, buf, offset, request.encode())
         offset = offset + len(request)
 
         self.send(buf)
@@ -394,7 +394,7 @@ class Client(object):
         psize = (proto & 0xFFFFFFFFFFFF)
 
         if psize > 0:
-            return self.recv(psize, timeout)
+            return self.recv(psize, timeout).decode()
         return ""
 
     def info(self, request):
