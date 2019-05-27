@@ -328,7 +328,6 @@ class Client(object):
     def close(self):
         if self.asClient is not None:
             self.asClient.close()
-            self.asClient = None
 
     def info(self, request):
         read_policies = {'total_timeout': self.timeout}
@@ -443,6 +442,7 @@ parser.add_argument("-i"
                     , "--info-port"
                     , dest="info_port"
                     , default=3000
+                    , type=int
                     , help="PORT for Aerospike server (default: %(default)s)")
 parser.add_argument("-b"
                     , "--base-node"
@@ -572,7 +572,7 @@ class clGraphiteDaemon(Daemon):
                 s.connect((gs, gp))
                 GRAPHITE_RUNNING = True
             except:
-                print("unable to connect to Graphite server on %s:%d" % (gs, gp))
+                print("Unable to connect to Graphite server on %s:%d" % (gs, gp))
                 s.close()
                 sys.stdout.flush()
                 time.sleep(INTERVAL)
@@ -595,21 +595,24 @@ class clGraphiteDaemon(Daemon):
                         tls_crl_check=args.tls_crl_check, tls_crl_check_all=args.tls_crl_check_all,
                         auth_mode=auth_mode, timeout=args.timeout)
 
-        try:
-            self.client.connect(username=user, password=password)
+        while True:
 
-        except ClientError as e:
-            if self.client:
-                self.client.close()
-                self.client = None
-            print("Unable to connect to aerospike")
-            print(e)
-            sys.exit(1)
+            try:
+                self.client.connect(username=user, password=password)
+                break
+            except ClientError as e:
+                if self.client:
+                    self.client.close()
+                print("Unable to connect to Aerospike server on %s:%s "% (AEROSPIKE_SERVER, str(AEROSPIKE_PORT)))
+                print(e)
+                sys.stdout.flush()
+                time.sleep(INTERVAL)
 
         while True:
             msg = []
             now = int(time.time())
 
+            r = -1
             try:
                 r = self.client.info('statistics')
                 if (-1 != r):
@@ -653,6 +656,7 @@ class clGraphiteDaemon(Daemon):
                     print(r)
                     print(e)
                     sys.stdout.flush()
+
             if args.latency:
                 r = -1
                 try:
