@@ -22,18 +22,21 @@ sudo pip install -r requirements.txt
 ### Usage
 ```bash
 usage: asgraphite.py [-h] [-U USER] [-P [PASSWORD]] [-c CREDENTIALS]
+                     [--auth-mode AUTH_MODE]
                      [--stop | --start | --once | --restart] [--stdout] [-v]
                      [-n] [-s] [-l LATENCY] [-x DC [DC ...]]
                      [-g GRAPHITE_SERVER] [--interval GRAPHITE_INTERVAL]
                      [--prefix GRAPHITE_PREFIX] [--hostname HOSTNAME]
                      [-i INFO_PORT] [-b BASE_NODE] [-f LOG_FILE] [-si]
-                     [-hi HIST_DUMP [HIST_DUMP ...]] [--tls_enable]
-                     [--tls_encrypt_only] [--tls_keyfile TLS_KEYFILE]
-                     [--tls_certfile TLS_CERTFILE] [--tls_cafile TLS_CAFILE]
-                     [--tls_capath TLS_CAPATH] [--tls_protocols TLS_PROTOCOLS]
-                     [--tls_blacklist TLS_BLACKLIST]
-                     [--tls_ciphers TLS_CIPHERS] [--tls_crl] [--tls_crlall]
-                     [--tls_name TLS_NAME]
+                     [-hi HIST_DUMP [HIST_DUMP ...]] [--timeout TIMEOUT]
+                     [--tls-enable] [--tls-name TLS_NAME]
+                     [--tls-keyfile TLS_KEYFILE]
+                     [--tls-keyfile-pw TLS_KEYFILE_PW]
+                     [--tls-certfile TLS_CERTFILE] [--tls-cafile TLS_CAFILE]
+                     [--tls-capath TLS_CAPATH] [--tls-ciphers TLS_CIPHERS]
+                     [--tls-protocols TLS_PROTOCOLS]
+                     [--tls-cert-blacklist TLS_CERT_BLACKLIST]
+                     [--tls-crl-check] [--tls-crl-check-all]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -43,6 +46,9 @@ optional arguments:
   -c CREDENTIALS, --credentials-file CREDENTIALS
                         Path to the credentials file. Use this in place of
                         --user and --password.
+  --auth-mode AUTH_MODE
+                        Authentication mode. Values: ['EXTERNAL_INSECURE',
+                        'INTERNAL', 'EXTERNAL'] (default: INTERNAL)
   --stop                Stop the Daemon
   --start               Start the Daemon
   --once                Run the script once
@@ -67,7 +73,7 @@ optional arguments:
                         Prefix used when sending metrics to Graphite server
                         (default: instances.aerospike.)
   --hostname HOSTNAME   Hostname used when sending metrics to Graphite server
-                        (default: ubuntu)
+                        (default: hemant-mac.local)
   -i INFO_PORT, --info-port INFO_PORT
                         PORT for Aerospike server (default: 3000)
   -b BASE_NODE, --base-node BASE_NODE
@@ -78,33 +84,37 @@ optional arguments:
   -si, --sindex         Gather sindex based statistics
   -hi HIST_DUMP [HIST_DUMP ...], --hist-dump HIST_DUMP [HIST_DUMP ...]
                         Gather histogram data. Valid args are ttl and objsz
-  --tls_enable          Enable TLS
-  --tls_encrypt_only    TLS Encrypt Only
-  --tls_keyfile TLS_KEYFILE
+  --timeout TIMEOUT     Set timeout value in seconds to node level operations.
+                        (default: 5)
+  --tls-enable          Enable TLS
+  --tls-name TLS_NAME   The expected name on the server side certificate
+  --tls-keyfile TLS_KEYFILE
                         The private keyfile for your client TLS Cert
-  --tls_certfile TLS_CERTFILE
+  --tls-keyfile-pw TLS_KEYFILE_PW
+                        Password to load protected tls_keyfile
+  --tls-certfile TLS_CERTFILE
                         The client TLS cert
-  --tls_cafile TLS_CAFILE
+  --tls-cafile TLS_CAFILE
                         The CA for the server's certificate
-  --tls_capath TLS_CAPATH
+  --tls-capath TLS_CAPATH
                         The path to a directory containing CA certs and/or
                         CRLs
-  --tls_protocols TLS_PROTOCOLS
+  --tls-ciphers TLS_CIPHERS
+                        Ciphers to include. See https://www.openssl.org/docs/m
+                        an1.0.1/apps/ciphers.html for cipher list format
+  --tls-protocols TLS_PROTOCOLS
                         The TLS protocol to use. Available choices: SSLv2,
                         SSLv3, TLSv1, TLSv1.1, TLSv1.2, all. An optional + or
                         - can be appended before the protocol to indicate
                         specific inclusion or exclusion.
-  --tls_blacklist TLS_BLACKLIST
+  --tls-cert-blacklist TLS_CERT_BLACKLIST
                         Blacklist including serial number of certs to revoke
-  --tls_ciphers TLS_CIPHERS
-                        Ciphers to include. See https://www.openssl.org/docs/m
-                        an1.0.1/apps/ciphers.html for cipher list format
-  --tls_crl             Checks SSL/TLS certs against vendor's Certificate
+  --tls-crl-check       Checks SSL/TLS certs against vendor's Certificate
                         Revocation Lists for revoked certificates. CRLs are
                         found in path specified by --tls_capath. Checks the
                         leaf certificates only
-  --tls_crlall          Check on all entries within the CRL chain
-  --tls_name TLS_NAME   The expected name on the server side certificate
+  --tls-crl-check-all   Check on all entries within the CRL chain
+
 ```
 
 For example, to start <strong>asgraphite</strong> daemon, you might issue a command like this:
@@ -142,11 +152,8 @@ $ python /opt/aerospike/bin/asgraphite -si -l 'latency:' --start -g <graphite_ho
 #  To Stop the Daemon
 $ python /opt/aerospike/bin/asgraphite --stop
 
-#  To run with SSL/TLS encrypt only
-$ python /opt/aerospike/bin/asgraphite -n --tls_enable --tls_encrypt_only true --start -g <graphite_host:graphite_port>
-
 #  To run with SSL/TLS authenticate server
-$ python /opt/aerospike/bin/asgraphite -n --tls_enable --tls_cafile /path/to/CA/root.pem --tls_name <server name on cert> --start -g <graphite_host:graphite_port>
+$ python /opt/aerospike/bin/asgraphite -n --tls-enable --tls-cafile /path/to/CA/root.pem --tls-name <server name on cert> --start -g <graphite_host:graphite_port>
 
 #  To ship to multiple destinations:
 $ python /opt/aerospike/bin/asgraphite --start -g <graphite_host1:graphite_port1> -g <graphite_host2:graphite_port2> ...
@@ -171,4 +178,4 @@ An example logrotate file is provided. Move/rename the asgraphite.logrotate into
 This script is not aware of journalctl, as such it is not completely compatible with SystemD OSs. If your OS is a SystemD OS (RedHat 7, Ubuntu 16+), you would need to reinstall logrotate. Otherwise the generated log will grow without end.
 
 ## Dependencies
-- python argparse, bcrypt (if using auth), pyOpenSSL (if using SSL/TLS)
+- python argparse, aerospike==3.7.1
