@@ -73,7 +73,7 @@ optional arguments:
                         Prefix used when sending metrics to Graphite server
                         (default: instances.aerospike.)
   --hostname HOSTNAME   Hostname used when sending metrics to Graphite server
-                        (default: hemant-mac.local)
+                        (default: localhost.localdomain)
   -i INFO_PORT, --info-port INFO_PORT
                         PORT for Aerospike server (default: 3000)
   -b BASE_NODE, --base-node BASE_NODE
