@@ -103,10 +103,10 @@ optional arguments:
                         Ciphers to include. See https://www.openssl.org/docs/m
                         an1.0.1/apps/ciphers.html for cipher list format
   --tls-protocols TLS_PROTOCOLS
-                        The TLS protocol to use. Available choices: SSLv2,
-                        SSLv3, TLSv1, TLSv1.1, TLSv1.2, all. An optional + or
-                        - can be appended before the protocol to indicate
-                        specific inclusion or exclusion.
+                        The TLS protocol to use. Available choices: TLSv1,
+                        TLSv1.1, TLSv1.2, all. An optional + or - can be
+                        appended before the protocol to indicate specific
+                        inclusion or exclusion.
   --tls-cert-blacklist TLS_CERT_BLACKLIST
                         Blacklist including serial number of certs to revoke
   --tls-crl-check       Checks SSL/TLS certs against vendor's Certificate

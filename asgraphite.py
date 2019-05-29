@@ -496,7 +496,7 @@ parser.add_argument("--tls-ciphers"
                     , help="Ciphers to include. See https://www.openssl.org/docs/man1.0.1/apps/ciphers.html for cipher list format")
 parser.add_argument("--tls-protocols"
                     , dest="tls_protocols"
-                    , help="The TLS protocol to use. Available choices: SSLv2, SSLv3, TLSv1, TLSv1.1, TLSv1.2, all. An optional + or - can be appended before the protocol to indicate specific inclusion or exclusion.")
+                    , help="The TLS protocol to use. Available choices: TLSv1, TLSv1.1, TLSv1.2, all. An optional + or - can be appended before the protocol to indicate specific inclusion or exclusion.")
 parser.add_argument("--tls-cert-blacklist"
                     , dest="tls_cert_blacklist"
                     , help="Blacklist including serial number of certs to revoke")
