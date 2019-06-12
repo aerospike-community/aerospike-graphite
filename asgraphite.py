@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright 2013-2017 Aerospike, Inc.
+# Copyright 2013-2019 Aerospike, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,18 +19,19 @@ from __future__ import print_function
 
 
 __author__ = "Aerospike"
-__copyright__ = "Copyright 2018 Aerospike"
+__copyright__ = "Copyright 2019 Aerospike"
 __version__ = "1.6.6"
 
 # Modules
+import aerospike
 import argparse
 import getpass
 import re
-import sys
-import time
+import signal
 import socket
-import struct
-from ctypes import create_string_buffer
+
+
+DEFAULT_TIMEOUT = 5
 
 # Custom module to Daemonize this script.
 ###########################################
@@ -97,6 +98,13 @@ class Pidfile(object):
         return False
 
 
+# =============================================================================
+#
+# Daemon
+#
+# -----------------------------------------------------------------------------
+
+
 class Daemon:
     """
     A generic daemon class.
@@ -108,6 +116,7 @@ class Daemon:
         self.stderr = logfile
         self.pidfile = Pidfile(pidfile, "python")
         self.pidfileloc = pidfile
+        self.client = None
 
     def daemonize(self):
         """
@@ -157,6 +166,12 @@ class Daemon:
     def delpid(self):
         os.remove(self.pidfileloc)
 
+    def sigterm_handler(self, signal, frame):
+        if self.client:
+            self.client.close()
+            self.client = None
+        sys.exit(0)
+
     def start(self):
         """
         Start the daemon
@@ -169,6 +184,7 @@ class Daemon:
         # Start the daemon
         self.daemonize()
         self.pidfile.unlock()
+        signal.signal(signal.SIGTERM, self.sigterm_handler)
         self.run()
 
     def stop(self):
@@ -200,6 +216,9 @@ class Daemon:
         """
         # Start the daemon
         self.run()
+        if self.client:
+            self.client.close()
+            self.client = None
 
     def run(self):
         """
@@ -217,17 +236,36 @@ class Daemon:
 #
 # -----------------------------------------------------------------------------
 
-STRUCT_PROTO = struct.Struct('! Q')
-STRUCT_AUTH = struct.Struct('! xxBB12x')
-STRUCT_FIELD = struct.Struct('! IB')
 
-MSG_VERSION = 0
-MSG_TYPE = 2
-AUTHENTICATE = 0
-USER = 0
-CREDENTIAL = 3
-SALT = "$2a$10$7EqJtq98hPqEX7fNZaFWoO"
+class Enumeration(set):
+    def __getattr__(self, name):
+        if name in self:
+            return name
+        raise AttributeError
 
+    def __getitem__(self, name):
+        if name in self:
+            return name
+        raise AttributeError
+
+AuthMode = Enumeration([
+    # Use internal authentication only.  Hashed password is stored on the server.
+	# Do not send clear password. This is the default.
+
+	"INTERNAL",
+
+    # Use external authentication (like LDAP).  Specific external authentication is
+	# configured on server.  If TLS defined, send clear password on node login via TLS.
+	# Throw exception if TLS is not defined.
+
+	"EXTERNAL",
+
+    # Use external authentication (like LDAP).  Specific external authentication is
+	# configured on server.  Send clear password on node login whether or not TLS is defined.
+	# This mode should only be used for testing purposes because it is not secure authentication.
+
+	"EXTERNAL_INSECURE",
+])
 
 class ClientError(Exception):
     pass
@@ -235,177 +273,72 @@ class ClientError(Exception):
 
 class Client(object):
 
-    def __init__(self, addr, port, timeout=0.7):
+    def __init__(self, addr, port, tls_enable=False, tls_name=None, tls_keyfile=None, tls_keyfile_pw=None, tls_certfile=None,
+                 tls_cafile=None, tls_capath=None, tls_cipher=None, tls_protocols=None, tls_cert_blacklist=None,
+                 tls_crl_check=False, tls_crl_check_all=False, auth_mode=aerospike.AUTH_INTERNAL, timeout=DEFAULT_TIMEOUT):
         self.addr = addr
         self.port = port
+        self.tls_name = tls_name
         self.timeout = timeout
-        self.sock = None
+        self.host = (self.addr, self.port)
+        if self.tls_name:
+            self.host = (self.addr, self.port, self.tls_name)
 
-    def connect(self, keyfile=None, certfile=None, ca_certs=None, ciphers=None, tls_enable=False, encrypt_only=False,
-        capath=None, protocols=None, cert_blacklist=None, crl_check=False, crl_check_all=False, tls_name=None):
-        s = None
-        for res in socket.getaddrinfo(self.addr, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM):
-            af, socktype, proto, canonname, sa = res
-            ssl_context = None
-            try:
-                s = socket.socket(af, socktype, proto)
-            except socket.error as msg:
-                s = None
-                continue
-            if tls_enable:
-                from ssl_context import SSLContext
-                from OpenSSL import SSL
-                ssl_context = SSLContext(enable_tls=tls_enable, encrypt_only=encrypt_only, cafile=ca_certs, capath=capath,
-                       keyfile=keyfile, certfile=certfile, protocols=protocols,
-                       cipher_suite=ciphers, cert_blacklist=cert_blacklist,
-                       crl_check=crl_check, crl_check_all=crl_check_all).ctx
-                s = SSL.Connection(ssl_context,s)
-            try:
-                s.connect(sa)
-                if ssl_context:
-                    s.set_app_data(tls_name)
-                    s.do_handshake()
-            except socket.error as msg:
-                s.close()
-                s = None
-                print("Connect Error %s" % msg)
-                continue
-            break
+        tls_config = {
+            'enable': tls_enable
+        }
 
-        if s is None:
-            raise ClientError(
-                "Could not connect to server at %s %s" % (self.addr, self.port))
+        if tls_enable:
+            tls_config = {
+                'enable': tls_enable,
+                'keyfile': tls_keyfile,
+                'keyfile_pw': tls_keyfile_pw,
+                'certfile': tls_certfile,
+                'cafile': tls_cafile,
+                'capath': tls_capath,
+                'cipher_suite': tls_cipher,
+                'protocols': tls_protocols,
+                'cert_blacklist': tls_cert_blacklist,
+                'crl_check': tls_crl_check,
+                'crl_check_all': tls_crl_check_all
+            }
 
-        self.sock = s
-        return self
+        config = {
+            'hosts': [
+                self.host
+            ],
+
+            'policies': {
+                'timeout': self.timeout*1000,
+                'auth_mode': auth_mode
+            },
+
+            'tls': tls_config
+        }
+
+        self.asClient = aerospike.client(config)
+
+
+    def connect(self, username=None, password=None):
+        try:
+            self.asClient.connect(username, password)
+        except Exception as e:
+            raise ClientError("Could not connect to server at %s %s: %s" % (self.addr, self.port, str(e)))
 
     def close(self):
-        if self.sock is not None:
-            self.sock.settimeout(None)
-            self.sock.close()
-            self.sock = None
-
-    def auth(self, username, password, timeout=None):
-
-        import bcrypt
-
-        if password == None:
-            password = ''
-        credential = bcrypt.hashpw(password, SALT)
-
-        if timeout is None:
-            timeout = self.timeout
-
-        l = 8 + 16
-        l += 4 + 1 + len(username)
-        l += 4 + 1 + len(credential)
-
-        buf = create_string_buffer(l)
-        offset = 0
-
-        proto = (MSG_VERSION << 56) | (MSG_TYPE << 48) | (l - 8)
-        STRUCT_PROTO.pack_into(buf, offset, proto)
-        offset += STRUCT_PROTO.size
-
-        STRUCT_AUTH.pack_into(buf, offset, AUTHENTICATE, 2)
-        offset += STRUCT_AUTH.size
-
-        STRUCT_FIELD.pack_into(buf, offset, len(username) + 1, USER)
-        offset += STRUCT_FIELD.size
-        fmt = "! %ds" % len(username)
-        struct.pack_into(fmt, buf, offset, username)
-        offset += len(username)
-
-        STRUCT_FIELD.pack_into(buf, offset, len(credential) + 1, CREDENTIAL)
-        offset += STRUCT_FIELD.size
-        fmt = "! %ds" % len(credential)
-        struct.pack_into(fmt, buf, offset, credential)
-        offset += len(credential)
-
-        self.send(buf)
-
-        buf = self.recv(8, timeout)
-        rv = STRUCT_PROTO.unpack(buf)
-        proto = rv[0]
-        pvers = (proto >> 56) & 0xFF
-        ptype = (proto >> 48) & 0xFF
-        psize = (proto & 0xFFFFFFFFFFFF)
-
-        buf = self.recv(psize, timeout)
-        status = ord(buf[1])
-
-        if status != 0:
-            raise ClientError("Autentication Error %d for '%s' " %
-                              (status, username))
-
-    def send(self, data):
-        if self.sock:
-            try:
-                r = self.sock.sendall(data)
-            except IOError as e:
-                raise ClientError(e)
-            except socket.error as e:
-                raise ClientError(e)
-        else:
-            raise ClientError('socket not available')
-
-    def send_request(self, request, pvers=2, ptype=1):
-        if request:
-            request += '\n'
-        sz = len(request) + 8
-        buf = create_string_buffer(len(request) + 8)
-        offset = 0
-
-        proto = (pvers << 56) | (ptype << 48) | len(request)
-        STRUCT_PROTO.pack_into(buf, offset, proto)
-        offset = STRUCT_PROTO.size
-
-        fmt = "! %ds" % len(request)
-        struct.pack_into(fmt, buf, offset, request.encode())
-        offset = offset + len(request)
-
-        self.send(buf)
-
-    def recv(self, sz, timeout):
-        out = ""
-        pos = 0
-        start_time = time.time()
-        while pos < sz:
-            buf = None
-            try:
-                buf = self.sock.recv(sz)
-            except IOError as e:
-                raise ClientError(e)
-            if pos == 0:
-                out = buf
-            else:
-                out += buf
-            pos += len(buf)
-            if timeout and time.time() - start_time > timeout:
-                raise ClientError(socket.timeout())
-        return out
-
-    def recv_response(self, timeout=None):
-        buf = self.recv(8, timeout)
-        rv = STRUCT_PROTO.unpack(buf)
-        proto = rv[0]
-        pvers = (proto >> 56) & 0xFF
-        ptype = (proto >> 48) & 0xFF
-        psize = (proto & 0xFFFFFFFFFFFF)
-
-        if psize > 0:
-            return self.recv(psize, timeout).decode()
-        return ""
+        if self.asClient is not None:
+            self.asClient.close()
 
     def info(self, request):
-        self.send_request(request)
-        res = self.recv_response(timeout=self.timeout)
+        read_policies = {'total_timeout': self.timeout}
+
+        res = self.asClient.info_node(request, self.host, policy=read_policies)
         out = re.split("\s+", res, maxsplit=1)
+
         if len(out) == 2:
             return out[1]
         else:
             raise ClientError("Failed to parse response: %s" % (res))
-
 
 
 ####
@@ -439,6 +372,10 @@ parser.add_argument("-c"
                     , "--credentials-file"
                     , dest="credentials"
                     , help="Path to the credentials file. Use this in place of --user and --password.")
+parser.add_argument("--auth-mode"
+                    , dest="auth_mode"
+                    , default=str(AuthMode.INTERNAL)
+                    , help="Authentication mode. Values: " + str(list(AuthMode)) + " (default: %(default)s)")
 group.add_argument("--stop"
                     , action="store_true"
                     , dest="stop"
@@ -505,6 +442,7 @@ parser.add_argument("-i"
                     , "--info-port"
                     , dest="info_port"
                     , default=3000
+                    , type=int
                     , help="PORT for Aerospike server (default: %(default)s)")
 parser.add_argument("-b"
                     , "--base-node"
@@ -527,59 +465,76 @@ parser.add_argument("-hi"
                     , action='append'
                     , dest="hist_dump"
                     , help="Gather histogram data.  Valid args are ttl and objsz")
-parser.add_argument("--tls_enable"
+parser.add_argument("--timeout"
+                    , dest="timeout"
+                    , default=DEFAULT_TIMEOUT
+                    , help="Set timeout value in seconds to node level operations. (default: %(default)s)")
+parser.add_argument("--tls-enable"
                     , action="store_true"
                     , dest="tls_enable"
                     , help="Enable TLS")
-parser.add_argument("--tls_encrypt_only"
-                    , action="store_true"
-                    , dest="tls_encrypt_only"
-                    , help="TLS Encrypt Only")
-parser.add_argument("--tls_keyfile"
-                    , dest="tls_keyfile"
-                    , help="The private keyfile for your client TLS Cert")
-parser.add_argument("--tls_certfile"
-                    , dest="tls_certfile"
-                    , help="The client TLS cert")
-parser.add_argument("--tls_cafile"
-                    , dest="tls_cafile"
-                    , help="The CA for the server's certificate")
-parser.add_argument("--tls_capath"
-                    , dest="tls_capath"
-                    , help="The path to a directory containing CA certs and/or CRLs")
-parser.add_argument("--tls_protocols"
-                    , dest="tls_protocols"
-                    , help="The TLS protocol to use. Available choices: SSLv2, SSLv3, TLSv1, TLSv1.1, TLSv1.2, all. An optional + or - can be appended before the protocol to indicate specific inclusion or exclusion.")
-parser.add_argument("--tls_blacklist"
-                    , dest="tls_blacklist"
-                    , help="Blacklist including serial number of certs to revoke")
-parser.add_argument("--tls_ciphers"
-                    , dest="tls_ciphers"
-                    , help="Ciphers to include. See https://www.openssl.org/docs/man1.0.1/apps/ciphers.html for cipher list format")
-parser.add_argument("--tls_crl"
-                    , dest="tls_crl"
-                    , action="store_true"
-                    , help="Checks SSL/TLS certs against vendor's Certificate Revocation Lists for revoked certificates. CRLs are found in path specified by --tls_capath. Checks the leaf certificates only")
-parser.add_argument("--tls_crlall"
-                    , dest="tls_crlall"
-                    , action="store_true"
-                    , help="Check on all entries within the CRL chain")
-parser.add_argument("--tls_name"
+parser.add_argument("--tls-name"
                     , dest="tls_name"
                     , help="The expected name on the server side certificate")
-
+parser.add_argument("--tls-keyfile"
+                    , dest="tls_keyfile"
+                    , help="The private keyfile for your client TLS Cert")
+parser.add_argument("--tls-keyfile-pw"
+                    , dest="tls_keyfile_pw"
+                    , help="Password to load protected tls_keyfile")
+parser.add_argument("--tls-certfile"
+                    , dest="tls_certfile"
+                    , help="The client TLS cert")
+parser.add_argument("--tls-cafile"
+                    , dest="tls_cafile"
+                    , help="The CA for the server's certificate")
+parser.add_argument("--tls-capath"
+                    , dest="tls_capath"
+                    , help="The path to a directory containing CA certs and/or CRLs")
+parser.add_argument("--tls-ciphers"
+                    , dest="tls_ciphers"
+                    , help="Ciphers to include. See https://www.openssl.org/docs/man1.0.1/apps/ciphers.html for cipher list format")
+parser.add_argument("--tls-protocols"
+                    , dest="tls_protocols"
+                    , help="The TLS protocol to use. Available choices: TLSv1, TLSv1.1, TLSv1.2, all. An optional + or - can be appended before the protocol to indicate specific inclusion or exclusion.")
+parser.add_argument("--tls-cert-blacklist"
+                    , dest="tls_cert_blacklist"
+                    , help="Blacklist including serial number of certs to revoke")
+parser.add_argument("--tls-crl-check"
+                    , dest="tls_crl_check"
+                    , action="store_true"
+                    , help="Checks SSL/TLS certs against vendor's Certificate Revocation Lists for revoked certificates. CRLs are found in path specified by --tls_capath. Checks the leaf certificates only")
+parser.add_argument("--tls-crl-check-all"
+                    , dest="tls_crl_check_all"
+                    , action="store_true"
+                    , help="Check on all entries within the CRL chain")
 
 
 args = parser.parse_args()
 
 user = None
 password = None
+auth_mode = aerospike.AUTH_INTERNAL
 
 if args.user != None:
     user = args.user
     if args.password == "prompt":
         args.password = getpass.getpass("Enter Password:")
     password = args.password
+
+if args.credentials:
+    try:
+        cred_file = open(args.credentials,'r')
+        user = cred_file.readline().strip()
+        password = cred_file.readline().strip()
+    except IOError:
+        print("Unable to read credentials file: %s"%args.credentials)
+
+if user:
+    if args.auth_mode == AuthMode.EXTERNAL:
+        auth_mode = aerospike.AUTH_EXTERNAL
+    elif args.auth_mode == AuthMode.EXTERNAL_INSECURE:
+        auth_mode = aerospike.AUTH_EXTERNAL_INSECURE
 
 # Configurable parameters
 LOGFILE = args.log_file
@@ -617,7 +572,7 @@ class clGraphiteDaemon(Daemon):
                 s.connect((gs, gp))
                 GRAPHITE_RUNNING = True
             except:
-                print("unable to connect to Graphite server on %s:%d" % (gs, gp))
+                print("Unable to connect to Graphite server on %s:%d" % (gs, gp))
                 s.close()
                 sys.stdout.flush()
                 time.sleep(INTERVAL)
@@ -632,32 +587,34 @@ class clGraphiteDaemon(Daemon):
                 s.append({"ip":gsa[0],"port":int(gsa[1]),"s":self.connect(gsa[0],int(gsa[1]))})
             print("Aerospike-Graphite connector started: ", time.asctime(time.localtime()))
             sys.stdout.flush()
+
+        self.client = Client(addr=AEROSPIKE_SERVER, port=AEROSPIKE_PORT, tls_enable=args.tls_enable, tls_name=args.tls_name,
+                        tls_keyfile=args.tls_keyfile, tls_keyfile_pw=args.tls_keyfile_pw, tls_certfile=args.tls_certfile,
+                        tls_cafile=args.tls_cafile, tls_capath=args.tls_capath, tls_cipher=args.tls_ciphers,
+                        tls_protocols=args.tls_protocols, tls_cert_blacklist=args.tls_cert_blacklist,
+                        tls_crl_check=args.tls_crl_check, tls_crl_check_all=args.tls_crl_check_all,
+                        auth_mode=auth_mode, timeout=args.timeout)
+
         while True:
-            msg = []
-            now = int(time.time())
+
             try:
-                client = Client(addr=AEROSPIKE_SERVER,port=AEROSPIKE_PORT)
-                client.connect(keyfile=args.tls_keyfile, certfile=args.tls_certfile, ca_certs=args.tls_cafile, ciphers=args.tls_ciphers, tls_enable=args.tls_enable,
-                    encrypt_only=args.tls_encrypt_only, capath=args.tls_capath, protocols=args.tls_protocols, cert_blacklist=args.tls_blacklist, crl_check=args.tls_crl,
-                    crl_check_all=args.tls_crlall, tls_name=args.tls_name)
-                global user, password
-                if args.credentials:
-                    try:
-                        cred_file = open(args.credentials,'r')
-                        user = cred_file.readline().strip()
-                        password = cred_file.readline().strip()
-                    except IOError:
-                        print("Unable to read credentials file: %s"%args.credentials)
-                if user:
-                    status = client.auth(user,password)
-            except Exception as e:
-                print("Unable to connect to aerospike")
+                self.client.connect(username=user, password=password)
+                break
+            except ClientError as e:
+                if self.client:
+                    self.client.close()
+                print("Unable to connect to Aerospike server on %s:%s "% (AEROSPIKE_SERVER, str(AEROSPIKE_PORT)))
                 print(e)
                 sys.stdout.flush()
                 time.sleep(INTERVAL)
-                continue
+
+        while True:
+            msg = []
+            now = int(time.time())
+
+            r = -1
             try:
-                r = client.info('statistics')
+                r = self.client.info('statistics')
                 if (-1 != r):
                     lines = []
                     for string in r.split(';'):
@@ -676,10 +633,11 @@ class clGraphiteDaemon(Daemon):
                 print("Unable to parse general stats:")
                 print(r)        # not combined with above line because 'r' could be int (-1) or string
                 sys.stdout.flush()
+
             if args.sets:
                 r = -1
                 try:
-                    r = client.info('sets')
+                    r = self.client.info('sets')
                     if (-1 != r):
                         r = r.strip()
                         lines = []
@@ -698,13 +656,14 @@ class clGraphiteDaemon(Daemon):
                     print(r)
                     print(e)
                     sys.stdout.flush()
+
             if args.latency:
                 r = -1
                 try:
                     if args.latency.startswith('latency:'):
-                        r = client.info(args.latency)
+                        r = self.client.info(args.latency)
                     else:
-                        r = client.info('latency:')
+                        r = self.client.info('latency:')
                     if (-1 != r):
                         r = r.strip()
                         lines = []
@@ -743,14 +702,14 @@ class clGraphiteDaemon(Daemon):
             if args.namespace:
                 r = -1
                 try:
-                    r = client.info('namespaces')
+                    r = self.client.info('namespaces')
                     if (-1 != r):
                         r = r.strip()
                         namespaces = list(filter(None, r.split(';')))
                         if len(namespaces) > 0:
                             for namespace in namespaces:
                                 r = -1
-                                r = client.info('namespace/' + namespace)
+                                r = self.client.info('namespace/' + namespace)
                                 if (-1 != r):
                                     r = r.strip()
                                     lines = []
@@ -765,7 +724,7 @@ class clGraphiteDaemon(Daemon):
                                     HD = [ item for sublist in args.hist_dump for item in sublist]
                                     for histtype in HD:
                                         try:
-                                            r = client.info('hist-dump:ns=' + namespace + ';hist=' + histtype)
+                                            r = self.client.info('hist-dump:ns=' + namespace + ';hist=' + histtype)
                                             if (-1 != r):
                                                 if 'hist-not-applicable' in r:
                                                     continue    # skip in-memory namespaces that don't have histograms
@@ -798,7 +757,7 @@ class clGraphiteDaemon(Daemon):
                 DCS = [ item for sublist in AEROSPIKE_XDR_DCS for item in sublist]
                 for DC in DCS:
                     try:
-                        r = client.info('dc/' + DC)
+                        r = self.client.info('dc/' + DC)
                         if (-1 != r):
                             r = r.strip()
                             lines = []
@@ -834,7 +793,7 @@ class clGraphiteDaemon(Daemon):
             if args.sindex:
                 r = -1
                 try:
-                    r = client.info('sindex')
+                    r = self.client.info('sindex')
                     if (-1 != r):
                         r = r.strip()
                         indexes = str(filter(None, r))
@@ -859,7 +818,7 @@ class clGraphiteDaemon(Daemon):
     
                                     r = -1
                                     try:
-                                        r = client.info('sindex/' + index["ns"] + '/' + index["indexname"])
+                                        r = self.client.info('sindex/' + index["ns"] + '/' + index["indexname"])
                                     except:
                                         pass
                                     if (-1 != r):
@@ -875,6 +834,7 @@ class clGraphiteDaemon(Daemon):
                     print(r)
                     print(e)
                     sys.stdout.flush()
+
             nmsg = ''
             #AER-2098 move all non numeric values to numbers
             #check if the val is a float (graphite uses float)
@@ -884,6 +844,7 @@ class clGraphiteDaemon(Daemon):
             #as there is no major gain in moving them to the new format
             for line in msg:
                 fields=line.split()
+
                 try:
                     float(fields[1])
                 except ValueError:
@@ -905,9 +866,11 @@ class clGraphiteDaemon(Daemon):
                 for f in fields:
                     line += f + ' '
                 nmsg += line.strip('.') + '\n'
+
             if not args.stdout:
                 if args.verbose:
                     print(nmsg)
+
                 for s_idx,s_sock in enumerate(s):
                     try:
                         s_sock["s"].sendall(nmsg)
@@ -918,9 +881,10 @@ class clGraphiteDaemon(Daemon):
                         s[s_idx]["s"] = self.connect(s_sock["ip"],s_sock["port"])
             else:
                 print(nmsg)
-            client.close()
+
             if args.once:
                 break
+
             time.sleep(INTERVAL)
 
 if __name__ == "__main__":
