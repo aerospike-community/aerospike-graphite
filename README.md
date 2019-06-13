@@ -6,21 +6,27 @@ This repositiory provides the asgraphite connector to connect Aerospike with Gra
 The asgraphite.py script simplifies graphite configurations for Aerospike clusters. 
 The goal is to reduce the complexity to 3 simple steps.
 
-## Features
-
 ### Requirements
-```bash
+Additional python modules are required and installed using pip:
+```
 sudo pip install -r requirements.txt
 ```
 
+See requirements.txt
+
+For more information see the [Aerospike Python Client Installation page](/docs/client/python/install)
+
 ### Getting Started
 1. Copy asgraphite.py to /opt/aerospike/bin/asgraphite
-    > The script requires python argparse, bcrypt (if using auth), pyOpenSSL (if using SSL/TLS).
-1. Ensure the aerospike log directory exists. /var/log/aerospike/
+    > The script requires python version 2.6+.
+    > The script requires python argparse.
+    > The script requires Aerospike Python Client version 3.7.1+.
+1. Ensure the aerospike log directory exists. `/var/log/aerospike/`
 1. Issue the aerospike Graphite command
 
 ### Usage
 ```bash
+$ python /opt/aerospike/bin/asgraphite --help
 usage: asgraphite.py [-h] [-U USER] [-P [PASSWORD]] [-c CREDENTIALS]
                      [--auth-mode AUTH_MODE]
                      [--stop | --start | --once | --restart] [--stdout] [-v]
@@ -91,7 +97,7 @@ optional arguments:
   --tls-keyfile TLS_KEYFILE
                         The private keyfile for your client TLS Cert
   --tls-keyfile-pw TLS_KEYFILE_PW
-                        Password to load protected tls_keyfile
+                        Password to load protected --tls-keyfile
   --tls-certfile TLS_CERTFILE
                         The client TLS cert
   --tls-cafile TLS_CAFILE
@@ -101,7 +107,7 @@ optional arguments:
                         CRLs
   --tls-ciphers TLS_CIPHERS
                         Ciphers to include. See https://www.openssl.org/docs/m
-                        an1.0.1/apps/ciphers.html for cipher list format
+                        an1.1.0/man1/ciphers.html for cipher list format
   --tls-protocols TLS_PROTOCOLS
                         The TLS protocol to use. Available choices: TLSv1,
                         TLSv1.1, TLSv1.2, all. An optional + or - can be
@@ -111,13 +117,13 @@ optional arguments:
                         Blacklist including serial number of certs to revoke
   --tls-crl-check       Checks SSL/TLS certs against vendor's Certificate
                         Revocation Lists for revoked certificates. CRLs are
-                        found in path specified by --tls_capath. Checks the
+                        found in path specified by --tls-capath. Checks the
                         leaf certificates only
   --tls-crl-check-all   Check on all entries within the CRL chain
 
 ```
 
-For example, to start <strong>asgraphite</strong> daemon, you might issue a command like this:
+### Examples
 
 ```bash
 Usage :
@@ -177,5 +183,7 @@ An example logrotate file is provided. Move/rename the asgraphite.logrotate into
 **Note**
 This script is not aware of journalctl, as such it is not completely compatible with SystemD OSs. If your OS is a SystemD OS (RedHat 7, Ubuntu 16+), you would need to reinstall logrotate. Otherwise the generated log will grow without end.
 
-## Dependencies
-- python argparse, aerospike==3.7.1
+### Dependencies
+- python version 2.6+.<BR>
+- python argparse.<BR>
+- Aerospike Python Client version 3.7.1+.
