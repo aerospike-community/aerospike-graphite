@@ -18,8 +18,8 @@ For more information see the [Aerospike Python Client Installation page](/docs/c
 
 ### Getting Started
 1. Copy asgraphite.py to /opt/aerospike/bin/asgraphite
-    > The script requires python version 2.6+.
-    > The script requires python argparse.
+    > The script requires python version 2.6+.<BR>
+    > The script requires python argparse.<BR>
     > The script requires Aerospike Python Client version 3.7.1+.
 1. Ensure the aerospike log directory exists. `/var/log/aerospike/`
 1. Issue the aerospike Graphite command
