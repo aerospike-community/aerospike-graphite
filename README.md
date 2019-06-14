@@ -126,7 +126,6 @@ optional arguments:
 ### Examples
 
 ```bash
-Usage :
 
 #  To send just the (using defaults) latency information to Graphite
 $ python /opt/aerospike/bin/asgraphite -l 'latency:' --start -g <graphite_host:graphite_port>
