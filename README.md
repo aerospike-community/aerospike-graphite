@@ -183,6 +183,6 @@ An example logrotate file is provided. Move/rename the asgraphite.logrotate into
 This script is not aware of journalctl, as such it is not completely compatible with SystemD OSs. If your OS is a SystemD OS (RedHat 7, Ubuntu 16+), you would need to reinstall logrotate. Otherwise the generated log will grow without end.
 
 ### Dependencies
-- python version 2.6+.<BR>
+- python version 3.4+.<BR>
 - python argparse.<BR>
-- Aerospike Python Client version 3.7.1+.
+- Aerospike Python Client version 3.10.0+.
