@@ -1,6 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-# Copyright 2013-2019 Aerospike, Inc.
+# Copyright 2013-2020 Aerospike, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ from __future__ import print_function
 
 
 __author__ = "Aerospike"
-__copyright__ = "Copyright 2019 Aerospike"
+__copyright__ = "Copyright 2020 Aerospike"
 __version__ = "2.0.0"
 
 # Modules
