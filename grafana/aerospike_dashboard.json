@@ -12,7 +12,7 @@
       "name": "VAR_PREFIX",
       "type": "constant",
       "label": "prefix",
-      "value": "instances",
+      "value": "aerospike",
       "description": ""
     }
   ],
@@ -1851,19 +1851,19 @@
     "list": [
       {
         "current": {
-          "value": "${VAR_prefix}",
-          "text": "${VAR_prefix}"
+          "value": "${VAR_PREFIX}",
+          "text": "${VAR_PREFIX}"
         },
         "hide": 2,
         "label": "",
         "name": "prefix",
         "options": [
           {
-            "value": "${VAR_prefix}",
-            "text": "${VAR_prefix}"
+            "value": "${VAR_PREFIX}",
+            "text": "${VAR_PREFIX}"
           }
         ],
-        "query": "${VAR_prefix}",
+        "query": "${VAR_PREFIX}",
         "type": "constant"
       },
       {
