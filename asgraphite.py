@@ -17,7 +17,6 @@
 # Description: Graphite connector for Aerospike
 from __future__ import print_function
 
-
 __author__ = "Aerospike"
 __copyright__ = "Copyright 2020 Aerospike"
 __version__ = "2.0.0"
@@ -59,7 +58,7 @@ class Pidfile(object):
 
     def write(self, pid):
         os.ftruncate(self.fd, 0)
-        os.write(self.fd, "%d" % int(pid))
+        os.write(self.fd, b"%d" % int(pid))
         os.fsync(self.fd)
 
     def kill(self):
@@ -92,7 +91,7 @@ class Pidfile(object):
         if stdout == "COMM\n":
             return False
 
-        if self.procname in stdout[stdout.find("\n") + 1:]:
+        if self.procname.encode() in stdout[stdout.find(b"\n") + 1:]:
             return True
 
         return False
@@ -153,7 +152,7 @@ class Daemon:
         sys.stderr.flush()
         si = open(self.stdin, 'r')
         so = open(self.stdout, 'a+')
-        se = open(self.stderr, 'a+', 0)
+        se = open(self.stderr, 'a+b', 0)
         os.dup2(si.fileno(), sys.stdin.fileno())
         os.dup2(so.fileno(), sys.stdout.fileno())
         os.dup2(se.fileno(), sys.stderr.fileno())
@@ -432,7 +431,7 @@ parser.add_argument("--interval"
                     , help="How often metrics are sent to graphite (seconds)")
 parser.add_argument("--prefix"
                     , dest="graphite_prefix"
-                    , default='instances.aerospike.'
+                    , default='aerospike.cluster'
                     , help="Prefix used when sending metrics to Graphite server (default: %(default)s)")
 parser.add_argument("--hostname"
                     , dest="hostname"
@@ -560,7 +559,7 @@ AEROSPIKE_SERVER = args.base_node
 AEROSPIKE_PORT = args.info_port
 AEROSPIKE_SERVER_ID = args.hostname
 AEROSPIKE_XDR_DCS = args.dc
-GRAPHITE_PATH_PREFIX = args.graphite_prefix + AEROSPIKE_SERVER_ID
+GRAPHITE_PATH_PREFIX = args.graphite_prefix + '.' + AEROSPIKE_SERVER_ID
 INTERVAL = int(args.graphite_interval)
 
 class clGraphiteDaemon(Daemon):
@@ -757,7 +756,13 @@ class clGraphiteDaemon(Daemon):
                 DCS = [ item for sublist in AEROSPIKE_XDR_DCS for item in sublist]
                 for DC in DCS:
                     try:
-                        r = self.client.info('dc/' + DC)
+                        # xdr stats command changed in server version 5.0
+                        version = self.client.info('build').split('.')
+                        r = ""
+                        if (int(version[0]) >= 5):
+                            r = self.client.info('get-stats:context=xdr;dc=' + DC)
+                        else:
+                            r = self.client.info('dc/' + DC)
                         if (-1 != r):
                             r = r.strip()
                             lines = []
@@ -873,9 +878,10 @@ class clGraphiteDaemon(Daemon):
 
                 for s_idx,s_sock in enumerate(s):
                     try:
-                        s_sock["s"].sendall(nmsg)
-                    except:
+                        s_sock["s"].sendall(nmsg.encode())
+                    except Exception as e:
                         print("ERROR: Unable to send to graphite server %s:%d, retrying connection.." %(s_sock["ip"],s_sock["port"]))
+                        print(e)
                         sys.stdout.flush()
                         s_sock["s"].close()
                         s[s_idx]["s"] = self.connect(s_sock["ip"],s_sock["port"])
