@@ -18,11 +18,18 @@ For more information see the [Aerospike Python Client Installation page](/docs/c
 
 ### Getting Started
 1. Copy asgraphite.py to /opt/aerospike/bin/asgraphite
-    > The script requires python version 2.6+.<BR>
+    > The script requires python 3.<BR>
     > The script requires python argparse.<BR>
-    > The script requires Aerospike Python Client version 3.7.1+.
+    > The script requires Aerospike Python Client version 3.10.0+.
 1. Ensure the aerospike log directory exists. `/var/log/aerospike/`
 1. Issue the aerospike Graphite command
+1. Ensure asgraphite.py is running properly.
+```
+tail -f /var/log/aerospike/asgraphite.log
+
+Starting asgraphite daemon Tue Aug 18 17:11:10 2020
+Aerospike-Graphite connector started:  Tue Aug 18 17:11:10 2020
+```
 
 ### Usage
 ```bash
@@ -181,6 +188,14 @@ An example logrotate file is provided. Move/rename the asgraphite.logrotate into
 
 **Note**
 This script is not aware of journalctl, as such it is not completely compatible with SystemD OSs. If your OS is a SystemD OS (RedHat 7, Ubuntu 16+), you would need to reinstall logrotate. Otherwise the generated log will grow without end.
+
+### Grafana
+The aerospike dashboard provided uses variables to allow switching between different
+Aerospike clusters. When launching asgraphite.py be sure to provide a --prefix argument 
+to label your clusters appropriately. Example prefix: `aerospike.cluster-west`.
+
+**Note**: Grafana and Aerospike Server both use port 3000 by default.  To run both on the same
+host you will need to change the port used by Grafana in grafana.ini.
 
 ### Dependencies
 - python version 3.4+.<BR>
