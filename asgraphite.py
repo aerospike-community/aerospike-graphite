@@ -672,8 +672,7 @@ class clGraphiteDaemon(Daemon):
                             if cmd.startswith('latencies:'):
                                 r = self.client.info(cmd)
                             else:
-                                print("-latency argument is in an incorrect format.")
-                                print("Running with argument \"latencies:\" instead.")
+                                print("-latency argument is in an incorrect format. Running with argument \"latencies:\" instead.")
                                 r = self.client.info('latencies:')
 
                             if res == -1:
@@ -684,8 +683,7 @@ class clGraphiteDaemon(Daemon):
                         if args.latency.startswith('latency:'):
                             res = self.client.info(latencies_cmds[0])
                         else:
-                            print("-latency argument is in an incorrect format.")
-                            print("Running with argument \"latency:\" instead.")
+                            print("-latency argument is in an incorrect format. Running with argument \"latency:\" instead.")
                             res = self.client.info('latency:')
                     if (-1 != res):
                         res = res.strip()
