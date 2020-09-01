@@ -60,8 +60,8 @@ optional arguments:
                         Path to the credentials file. Use this in place of
                         --user and --password.
   --auth-mode AUTH_MODE
-                        Authentication mode. Values: ['EXTERNAL_INSECURE',
-                        'INTERNAL', 'EXTERNAL'] (default: INTERNAL)
+                        Authentication mode. Values: ['INTERNAL',
+                        'EXTERNAL_INSECURE', 'EXTERNAL'] (default: INTERNAL)
   --stop                Stop the Daemon
   --start               Start the Daemon
   --once                Run the script once
@@ -105,7 +105,7 @@ optional arguments:
   --tls-keyfile TLS_KEYFILE
                         The private keyfile for your client TLS Cert
   --tls-keyfile-pw TLS_KEYFILE_PW
-                        Password to load protected tls_keyfile
+                        Password to load protected tls-keyfile
   --tls-certfile TLS_CERTFILE
                         The client TLS cert
   --tls-cafile TLS_CAFILE
@@ -125,11 +125,9 @@ optional arguments:
                         Blacklist including serial number of certs to revoke
   --tls-crl-check       Checks SSL/TLS certs against vendor's Certificate
                         Revocation Lists for revoked certificates. CRLs are
-                        found in path specified by --tls_capath. Checks the
+                        found in path specified by --tls-capath. Checks the
                         leaf certificates only
   --tls-crl-check-all   Check on all entries within the CRL chain
-
-
 ```
 
 ### Examples

@@ -482,7 +482,7 @@ parser.add_argument("--tls-keyfile"
                     , help="The private keyfile for your client TLS Cert")
 parser.add_argument("--tls-keyfile-pw"
                     , dest="tls_keyfile_pw"
-                    , help="Password to load protected tls_keyfile")
+                    , help="Password to load protected tls-keyfile")
 parser.add_argument("--tls-certfile"
                     , dest="tls_certfile"
                     , help="The client TLS cert")
@@ -504,7 +504,7 @@ parser.add_argument("--tls-cert-blacklist"
 parser.add_argument("--tls-crl-check"
                     , dest="tls_crl_check"
                     , action="store_true"
-                    , help="Checks SSL/TLS certs against vendor's Certificate Revocation Lists for revoked certificates. CRLs are found in path specified by --tls_capath. Checks the leaf certificates only")
+                    , help="Checks SSL/TLS certs against vendor's Certificate Revocation Lists for revoked certificates. CRLs are found in path specified by --tls-capath. Checks the leaf certificates only")
 parser.add_argument("--tls-crl-check-all"
                     , dest="tls_crl_check_all"
                     , action="store_true"
