@@ -670,6 +670,7 @@ class clGraphiteDaemon(Daemon):
                     if use_latencies_cmd:
                         for cmd in latencies_cmds:
                             if cmd.startswith('latencies:'):
+                                # example response: "batch-index:;{test}-read:;{test}-write:msec,0.0,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00;{test}-udf:"
                                 r = self.client.info(cmd)
                             else:
                                 print("-latency argument is in an incorrect format. Running with argument \"latencies:\" instead.")
@@ -681,6 +682,7 @@ class clGraphiteDaemon(Daemon):
                                 res = res + ';' + r.strip()
                     else:
                         if args.latency.startswith('latency:'):
+                            # example response: "error-no-data-yet-or-back-too-small;{test}-write:19:11:03-GMT,ops/sec,>1ms,>8ms,>64ms;19:11:13,10.0,0.00,0.00,0.00;error-no-data-yet-or-back-too-small"
                             res = self.client.info(latencies_cmds[0])
                         else:
                             print("-latency argument is in an incorrect format. Running with argument \"latency:\" instead.")
