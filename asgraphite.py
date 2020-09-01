@@ -666,7 +666,7 @@ class clGraphiteDaemon(Daemon):
                 res = -1
                 latencies_cmds = [ item for sublist in AEROSPIKE_LATENCY_CMDS for item in sublist]
                 try:
-                    use_latencies_cmd = True if int(version[0]) >= 5 and int(version[1]) >= 1 else False
+                    use_latencies_cmd = int(version[0]) >= 5 and int(version[1]) >= 1
                     if use_latencies_cmd:
                         for cmd in latencies_cmds:
                             if cmd.startswith('latencies:'):
