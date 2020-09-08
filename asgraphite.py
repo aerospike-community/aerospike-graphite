@@ -494,7 +494,7 @@ parser.add_argument("--tls-capath"
                     , help="The path to a directory containing CA certs and/or CRLs")
 parser.add_argument("--tls-ciphers"
                     , dest="tls_ciphers"
-                    , help="Ciphers to include. See https://www.openssl.org/docs/man1.0.1/apps/ciphers.html for cipher list format")
+                    , help="Ciphers to include. See https://www.openssl.org/docs/man1.1.0/man1/ciphers.html for cipher list format")
 parser.add_argument("--tls-protocols"
                     , dest="tls_protocols"
                     , help="The TLS protocol to use. Available choices: TLSv1, TLSv1.1, TLSv1.2, all. An optional + or - can be appended before the protocol to indicate specific inclusion or exclusion.")
@@ -614,7 +614,7 @@ class clGraphiteDaemon(Daemon):
             msg = []
             now = int(time.time())
 
-            # For checking serer version in order to issue correct commands.
+            # For checking server version in order to issue correct commands.
             version = self.client.info('build').split('.')
 
             res = -1

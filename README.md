@@ -115,7 +115,7 @@ optional arguments:
                         CRLs
   --tls-ciphers TLS_CIPHERS
                         Ciphers to include. See https://www.openssl.org/docs/m
-                        an1.0.1/apps/ciphers.html for cipher list format
+                        an1.1.0/man1/ciphers.html for cipher list format
   --tls-protocols TLS_PROTOCOLS
                         The TLS protocol to use. Available choices: TLSv1,
                         TLSv1.1, TLSv1.2, all. An optional + or - can be
