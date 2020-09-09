@@ -14,15 +14,22 @@ sudo pip install -r requirements.txt
 
 See requirements.txt
 
-For more information see the [Aerospike Python Client Installation page](/docs/client/python/install)
+For more information see the [Aerospike Python Client Installation page](https://github.com/aerospike/aerospike-client-python)
 
 ### Getting Started
 1. Copy asgraphite.py to /opt/aerospike/bin/asgraphite
-    > The script requires python version 2.6+.<BR>
+    > The script requires python 3.<BR>
     > The script requires python argparse.<BR>
-    > The script requires Aerospike Python Client version 3.7.1+.
+    > The script requires Aerospike Python Client version 3.10.0+.
 1. Ensure the aerospike log directory exists. `/var/log/aerospike/`
 1. Issue the aerospike Graphite command
+1. Ensure asgraphite.py is running properly.
+```
+tail -f /var/log/aerospike/asgraphite.log
+
+Starting asgraphite daemon Tue Aug 18 17:11:10 2020
+Aerospike-Graphite connector started:  Tue Aug 18 17:11:10 2020
+```
 
 ### Usage
 ```bash
@@ -30,7 +37,7 @@ $ python /opt/aerospike/bin/asgraphite --help
 usage: asgraphite.py [-h] [-U USER] [-P [PASSWORD]] [-c CREDENTIALS]
                      [--auth-mode AUTH_MODE]
                      [--stop | --start | --once | --restart] [--stdout] [-v]
-                     [-n] [-s] [-l LATENCY] [-x DC [DC ...]]
+                     [-n] [-s] [-l LATENCY [LATENCY ...]] [-x DC [DC ...]]
                      [-g GRAPHITE_SERVER] [--interval GRAPHITE_INTERVAL]
                      [--prefix GRAPHITE_PREFIX] [--hostname HOSTNAME]
                      [-i INFO_PORT] [-b BASE_NODE] [-f LOG_FILE] [-si]
@@ -53,8 +60,8 @@ optional arguments:
                         Path to the credentials file. Use this in place of
                         --user and --password.
   --auth-mode AUTH_MODE
-                        Authentication mode. Values: ['EXTERNAL_INSECURE',
-                        'INTERNAL', 'EXTERNAL'] (default: INTERNAL)
+                        Authentication mode. Values: ['INTERNAL',
+                        'EXTERNAL_INSECURE', 'EXTERNAL'] (default: INTERNAL)
   --stop                Stop the Daemon
   --start               Start the Daemon
   --once                Run the script once
@@ -64,9 +71,10 @@ optional arguments:
   -v, --verbose         Enable verbose logging
   -n, --namespace       Get all namespace statistics
   -s, --sets            Gather set based statistics
-  -l LATENCY, --latency LATENCY
+  -l LATENCY [LATENCY ...], --latency LATENCY [LATENCY ...]
                         Enable latency statistics and specify query (ie.
-                        latency:back=70;duration=60)
+                        latency:back=70;duration=60 or
+                        latencies:hist={NS}-benchmark-write)
   -x DC [DC ...], --xdr DC [DC ...]
                         Gather XDR datacenter statistics
   -g GRAPHITE_SERVER, --graphite GRAPHITE_SERVER
@@ -77,9 +85,9 @@ optional arguments:
                         How often metrics are sent to graphite (seconds)
   --prefix GRAPHITE_PREFIX
                         Prefix used when sending metrics to Graphite server
-                        (default: instances.aerospike.)
+                        (default: aerospike.cluster)
   --hostname HOSTNAME   Hostname used when sending metrics to Graphite server
-                        (default: localhost.localdomain)
+                        (default: ubuntu)
   -i INFO_PORT, --info-port INFO_PORT
                         PORT for Aerospike server (default: 3000)
   -b BASE_NODE, --base-node BASE_NODE
@@ -97,7 +105,7 @@ optional arguments:
   --tls-keyfile TLS_KEYFILE
                         The private keyfile for your client TLS Cert
   --tls-keyfile-pw TLS_KEYFILE_PW
-                        Password to load protected --tls-keyfile
+                        Password to load protected tls-keyfile
   --tls-certfile TLS_CERTFILE
                         The client TLS cert
   --tls-cafile TLS_CAFILE
@@ -120,25 +128,35 @@ optional arguments:
                         found in path specified by --tls-capath. Checks the
                         leaf certificates only
   --tls-crl-check-all   Check on all entries within the CRL chain
-
 ```
 
 ### Examples
 
 ```bash
+# Note: Retrieving the latency/latencies histograms mimics the equivalent asinfo command.
+# If a latency command is in an incorrect format it will default to either "latency:" or "latencies:"
+# depending on the server version.
 
-#  To send just the (using defaults) latency information to Graphite
+# To send just the (using defaults) latencies (5.1+) information to Graphite
+$ python /opt/aerospike/bin/asgraphite -l 'latencies:' --start -g <graphite_host:graphite_port>
+
+# To send benchamrk latencies (5.1+) along with the defaults to Graphite.
+$ python /opt/aerospike/bin/asgraphite -l 'latencies:' ['latencies:hist={test}-benchmarks-write' 'latencies:hist={test}-benchmarks-read' ...] --start -g <graphite_host:graphite_port>
+or
+$ python /opt/aerospike/bin/asgraphite -l 'latency:' [-l 'latencies:hist={test}-benchmarks-write' -l 'latencies:hist={test}-benchmarks-read' ...] --start -g <graphite_host:graphite_port>
+
+#  To send just the (using defaults) latency (pre 5.1) information to Graphite
 $ python /opt/aerospike/bin/asgraphite -l 'latency:' --start -g <graphite_host:graphite_port>
 
-#  To send namespace stats to Graphite
-$ python /opt/aerospike/bin/asgraphite -n --start -g <graphite_host:graphite_port>
-
-#  To send the latency information of custom duration to Graphite.
-#  This would go back 70 seconds and send latency, set and namespace data to the Graphite server for 60 seconds worth of data.
-$ python /opt/aerospike/bin/asgraphite -n -l 'latency:back=70;duration=60' --start -g <graphite_host:graphite_port>
+#  To send the latency (pre 5.1) information of custom duration to Graphite.
+#  This would go back 70 seconds and send latency to the Graphite server for 60 seconds worth of data.
+$ python /opt/aerospike/bin/asgraphite -l 'latency:back=70;duration=60' --start -g <graphite_host:graphite_port>
 
 #  To send just the statistics information to Graphite
 $ python /opt/aerospike/bin/asgraphite --start -g <graphite_host:graphite_port>
+
+#  To send namespace stats to Graphite
+$ python /opt/aerospike/bin/asgraphite -n --start -g <graphite_host:graphite_port>
 
 #  To send sets info to Graphite
 $ python /opt/aerospike/bin/asgraphite -s --start -g <graphite_host:graphite_port>
@@ -182,7 +200,16 @@ An example logrotate file is provided. Move/rename the asgraphite.logrotate into
 **Note**
 This script is not aware of journalctl, as such it is not completely compatible with SystemD OSs. If your OS is a SystemD OS (RedHat 7, Ubuntu 16+), you would need to reinstall logrotate. Otherwise the generated log will grow without end.
 
+### Grafana
+The aerospike dashboard provided uses variables to allow switching between different
+Aerospike clusters. When launching asgraphite.py be sure to provide a --prefix argument 
+to label your clusters appropriately. Example prefix: `aerospike.cluster-west`.
+
+**Note**
+Grafana and Aerospike Server both use port 3000 by default.  To run both on the same
+host you will need to change the port used by Grafana in grafana.ini.
+
 ### Dependencies
-- python version 2.6+.<BR>
+- python version 3.4+.<BR>
 - python argparse.<BR>
-- Aerospike Python Client version 3.7.1+.
+- Aerospike Python Client version 3.10.0+.

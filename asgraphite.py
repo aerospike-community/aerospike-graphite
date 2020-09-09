@@ -1,6 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-# Copyright 2013-2019 Aerospike, Inc.
+# Copyright 2013-2020 Aerospike, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,9 +17,8 @@
 # Description: Graphite connector for Aerospike
 from __future__ import print_function
 
-
 __author__ = "Aerospike"
-__copyright__ = "Copyright 2019 Aerospike"
+__copyright__ = "Copyright 2020 Aerospike"
 __version__ = "2.0.0"
 
 # Modules
@@ -59,7 +58,7 @@ class Pidfile(object):
 
     def write(self, pid):
         os.ftruncate(self.fd, 0)
-        os.write(self.fd, "%d" % int(pid))
+        os.write(self.fd, b"%d" % int(pid))
         os.fsync(self.fd)
 
     def kill(self):
@@ -92,7 +91,7 @@ class Pidfile(object):
         if stdout == "COMM\n":
             return False
 
-        if self.procname in stdout[stdout.find("\n") + 1:]:
+        if self.procname.encode() in stdout[stdout.find(b"\n") + 1:]:
             return True
 
         return False
@@ -153,7 +152,7 @@ class Daemon:
         sys.stderr.flush()
         si = open(self.stdin, 'r')
         so = open(self.stdout, 'a+')
-        se = open(self.stderr, 'a+', 0)
+        se = open(self.stderr, 'a+b', 0)
         os.dup2(si.fileno(), sys.stdin.fileno())
         os.dup2(so.fileno(), sys.stdout.fileno())
         os.dup2(se.fileno(), sys.stderr.fileno())
@@ -413,8 +412,10 @@ parser.add_argument("-s"
                     , help="Gather set based statistics")
 parser.add_argument("-l"
                     , "--latency"
+                    , nargs='+'
+                    , action='append'
                     , dest="latency"
-                    , help="Enable latency statistics and specify query (ie. latency:back=70;duration=60)")
+                    , help="Enable latency statistics and specify query (ie. latency:back=70;duration=60 or latencies:hist={NS}-benchmark-write)")
 parser.add_argument("-x"
                     , "--xdr"
                     , nargs='+'
@@ -432,7 +433,7 @@ parser.add_argument("--interval"
                     , help="How often metrics are sent to graphite (seconds)")
 parser.add_argument("--prefix"
                     , dest="graphite_prefix"
-                    , default='instances.aerospike.'
+                    , default='aerospike.cluster'
                     , help="Prefix used when sending metrics to Graphite server (default: %(default)s)")
 parser.add_argument("--hostname"
                     , dest="hostname"
@@ -481,7 +482,7 @@ parser.add_argument("--tls-keyfile"
                     , help="The private keyfile for your client TLS Cert")
 parser.add_argument("--tls-keyfile-pw"
                     , dest="tls_keyfile_pw"
-                    , help="Password to load protected tls_keyfile")
+                    , help="Password to load protected tls-keyfile")
 parser.add_argument("--tls-certfile"
                     , dest="tls_certfile"
                     , help="The client TLS cert")
@@ -493,7 +494,7 @@ parser.add_argument("--tls-capath"
                     , help="The path to a directory containing CA certs and/or CRLs")
 parser.add_argument("--tls-ciphers"
                     , dest="tls_ciphers"
-                    , help="Ciphers to include. See https://www.openssl.org/docs/man1.0.1/apps/ciphers.html for cipher list format")
+                    , help="Ciphers to include. See https://www.openssl.org/docs/man1.1.0/man1/ciphers.html for cipher list format")
 parser.add_argument("--tls-protocols"
                     , dest="tls_protocols"
                     , help="The TLS protocol to use. Available choices: TLSv1, TLSv1.1, TLSv1.2, all. An optional + or - can be appended before the protocol to indicate specific inclusion or exclusion.")
@@ -503,7 +504,7 @@ parser.add_argument("--tls-cert-blacklist"
 parser.add_argument("--tls-crl-check"
                     , dest="tls_crl_check"
                     , action="store_true"
-                    , help="Checks SSL/TLS certs against vendor's Certificate Revocation Lists for revoked certificates. CRLs are found in path specified by --tls_capath. Checks the leaf certificates only")
+                    , help="Checks SSL/TLS certs against vendor's Certificate Revocation Lists for revoked certificates. CRLs are found in path specified by --tls-capath. Checks the leaf certificates only")
 parser.add_argument("--tls-crl-check-all"
                     , dest="tls_crl_check_all"
                     , action="store_true"
@@ -559,8 +560,9 @@ if not args.stop and not args.stdout:
 AEROSPIKE_SERVER = args.base_node
 AEROSPIKE_PORT = args.info_port
 AEROSPIKE_SERVER_ID = args.hostname
+AEROSPIKE_LATENCY_CMDS = args.latency
 AEROSPIKE_XDR_DCS = args.dc
-GRAPHITE_PATH_PREFIX = args.graphite_prefix + AEROSPIKE_SERVER_ID
+GRAPHITE_PATH_PREFIX = args.graphite_prefix + '.' + AEROSPIKE_SERVER_ID
 INTERVAL = int(args.graphite_interval)
 
 class clGraphiteDaemon(Daemon):
@@ -612,12 +614,15 @@ class clGraphiteDaemon(Daemon):
             msg = []
             now = int(time.time())
 
-            r = -1
+            # For checking server version in order to issue correct commands.
+            version = self.client.info('build').split('.')
+
+            res = -1
             try:
-                r = self.client.info('statistics')
-                if (-1 != r):
+                res = self.client.info('statistics')
+                if (-1 != res):
                     lines = []
-                    for string in r.split(';'):
+                    for string in res.split(';'):
                         if string == "":
                             continue
     
@@ -631,17 +636,17 @@ class clGraphiteDaemon(Daemon):
                     msg.extend(lines)
             except:
                 print("Unable to parse general stats:")
-                print(r)        # not combined with above line because 'r' could be int (-1) or string
+                print(res)        # not combined with above line because 'r' could be int (-1) or string
                 sys.stdout.flush()
 
             if args.sets:
-                r = -1
+                res = -1
                 try:
-                    r = self.client.info('sets')
-                    if (-1 != r):
-                        r = r.strip()
+                    res = self.client.info('sets')
+                    if (-1 != res):
+                        res = res.strip()
                         lines = []
-                        for string in r.split(';'):
+                        for string in res.split(';'):
                             if len(string) == 0:
                                 continue
                             setList = string.split(':')
@@ -653,41 +658,78 @@ class clGraphiteDaemon(Daemon):
                         msg.extend(lines)
                 except Exception as e:
                     print("Unable to parse set stats:")
-                    print(r)
+                    print(res)
                     print(e)
                     sys.stdout.flush()
 
             if args.latency:
-                r = -1
+                res = -1
+                latencies_cmds = [ item for sublist in AEROSPIKE_LATENCY_CMDS for item in sublist]
                 try:
-                    if args.latency.startswith('latency:'):
-                        r = self.client.info(args.latency)
+                    use_latencies_cmd = int(version[0]) > 5 or (int(version[0]) == 5 and int(version[1]) >= 1)
+                    if use_latencies_cmd:
+                        for cmd in latencies_cmds:
+                            if cmd.startswith('latencies:'):
+                                # example response: "batch-index:;{test}-read:;{test}-write:msec,0.0,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00;{test}-udf:"
+                                r = self.client.info(cmd)
+                            else:
+                                print("-latency argument is in an incorrect format. Running with argument \"latencies:\" instead.")
+                                r = self.client.info('latencies:')
+
+                            if res == -1:
+                                res = r.strip()
+                            else:
+                                res = res + ';' + r.strip()
                     else:
-                        r = self.client.info('latency:')
-                    if (-1 != r):
-                        r = r.strip()
+                        if args.latency.startswith('latency:'):
+                            # example response: "error-no-data-yet-or-back-too-small;{test}-write:19:11:03-GMT,ops/sec,>1ms,>8ms,>64ms;19:11:13,10.0,0.00,0.00,0.00;error-no-data-yet-or-back-too-small"
+                            res = self.client.info(latencies_cmds[0])
+                        else:
+                            print("-latency argument is in an incorrect format. Running with argument \"latency:\" instead.")
+                            res = self.client.info('latency:')
+                    if (-1 != res):
+                        res = res.strip()
                         lines = []
                         latency_type = ""
                         header = []
-                        for string in r.split(';'):
-                            if len(string) == 0 or string.startswith("error"):
+                        #print(res)
+                        for histogram in res.split(';'):
+                            if len(histogram) == 0 or histogram.startswith("error"):
                                 continue
                             if len(latency_type) == 0:
                                 # Base case
-                                latency_type, rest = string.split(':', 1)
+                                latency_type, rest = histogram.split(':', 1)
                                 # handle dynamic naming
                                 match = re.match('{(.*)}',latency_type)
                                 if match:
                                     latency_type = re.sub('{.*}-','',latency_type)
                                     latency_type = match.groups()[0]+'.'+latency_type
+                                
+                                # Support for latencies (5.1+) cmd which uses a single line per histogram
+                                if use_latencies_cmd:
+                                    # latencies command does not return error, just empty histogram
+                                    if len(rest) == 0:
+                                        continue
+                                    # remove msec
+                                    thresholds = rest.split(',')[1:]
+                                    name = latency_type + "." + 'ops_per_sec'
+                                    value = thresholds[0]
+                                    lines.append("%s.latency.%s %s %s" % (GRAPHITE_PATH_PREFIX , name, value, now))
+                                    for i in range(0, 17):
+                                        name = latency_type + '.over_' + str(2**i) + "ms"
+                                        value = thresholds[i + 1]
+                                        lines.append("%s.latency.%s %s %s" % (GRAPHITE_PATH_PREFIX , name, value, now))
+                                    continue
+           
                                 header = rest.split(',')
+                            # The latency cmd (pre 5.1) uses 2 lines per histogram
                             else:
-                                val = string.split(',')
+                                thresholds = histogram.split(',')
                                 for i in range(1, len(header)):
                                     name = latency_type + "." + header[i]
                                     name = name.replace('>', 'over_')
                                     name = name.replace('ops/sec', 'ops_per_sec')
-                                    value = val[i]
+                                    value = thresholds[i]
                                     lines.append("%s.latency.%s %s %s" % (GRAPHITE_PATH_PREFIX , name, value, now))
                                 # Reset base case
                                 latency_type = ""
@@ -695,25 +737,25 @@ class clGraphiteDaemon(Daemon):
                         msg.extend(lines)
                 except Exception as e:
                     print("Unable to parse latency stats:")
-                    print(r)
+                    print(res)
                     print(e)
                     sys.stdout.flush()
 
             if args.namespace:
-                r = -1
+                res = -1
                 try:
-                    r = self.client.info('namespaces')
-                    if (-1 != r):
-                        r = r.strip()
-                        namespaces = list(filter(None, r.split(';')))
+                    res = self.client.info('namespaces')
+                    if (-1 != res):
+                        res = res.strip()
+                        namespaces = list(filter(None, res.split(';')))
                         if len(namespaces) > 0:
                             for namespace in namespaces:
-                                r = -1
-                                r = self.client.info('namespace/' + namespace)
-                                if (-1 != r):
-                                    r = r.strip()
+                                res = -1
+                                res = self.client.info('namespace/' + namespace)
+                                if (-1 != res):
+                                    res = res.strip()
                                     lines = []
-                                    for string in r.split(';'):
+                                    for string in res.split(';'):
                                         name, value = string.split('=')
                                         value = value.replace('false', "0")
                                         value = value.replace('true', "1")
@@ -724,13 +766,13 @@ class clGraphiteDaemon(Daemon):
                                     HD = [ item for sublist in args.hist_dump for item in sublist]
                                     for histtype in HD:
                                         try:
-                                            r = self.client.info('hist-dump:ns=' + namespace + ';hist=' + histtype)
-                                            if (-1 != r):
-                                                if 'hist-not-applicable' in r:
+                                            res = self.client.info('hist-dump:ns=' + namespace + ';hist=' + histtype)
+                                            if (-1 != res):
+                                                if 'hist-not-applicable' in res:
                                                     continue    # skip in-memory namespaces that don't have histograms
-                                                r = r.strip()
+                                                res = res.strip()
                                                 lines = []
-                                                string, ignore = r.split(';')
+                                                string, ignore = res.split(';')
                                                 namespace, string = string.split(':')
                                                 type, string = string.split('=')
                                                 buckets, size, string = string.split(',', 2)
@@ -743,25 +785,29 @@ class clGraphiteDaemon(Daemon):
                                                 msg.extend(lines)
                                         except:
                                             print("Failure to get histtype " + histtype + ":")
-                                            print(r)
+                                            print(res)
                                             sys.stdout.flush()
                 except Exception as e:
                     print("Unable to parse namespace list:")
-                    print(r)
+                    print(res)
                     print(e)
                     sys.stdout.flush()
     
             if args.dc:
-                r = -1
+                res = -1
                 # Flatten the list
                 DCS = [ item for sublist in AEROSPIKE_XDR_DCS for item in sublist]
                 for DC in DCS:
                     try:
-                        r = self.client.info('dc/' + DC)
-                        if (-1 != r):
-                            r = r.strip()
+                        res = ""
+                        if (int(version[0]) >= 5):
+                            res = self.client.info('get-stats:context=xdr;dc=' + DC)
+                        else:
+                            res = self.client.info('dc/' + DC)
+                        if (-1 != res):
+                            res = res.strip()
                             lines = []
-                            for string in r.split(';'):
+                            for string in res.split(';'):
                                 if string == "":
                                     continue
     
@@ -779,7 +825,7 @@ class clGraphiteDaemon(Daemon):
                             msg.extend(lines)
                     except Exception as e:
                         print("Unable to parse DC stats:")
-                        print(r)
+                        print(res)
                         print(e)
                         sys.stdout.flush()
     
@@ -791,12 +837,12 @@ class clGraphiteDaemon(Daemon):
     ##        RW = 1 & WO = 0
     
             if args.sindex:
-                r = -1
+                res = -1
                 try:
-                    r = self.client.info('sindex')
-                    if (-1 != r):
-                        r = r.strip()
-                        indexes = str(filter(None, r))
+                    res = self.client.info('sindex')
+                    if (-1 != res):
+                        res = res.strip()
+                        indexes = str(filter(None, res))
                         if len(indexes) > 0:
                             lines = []
                             for index_line in indexes.split(';'):
@@ -816,14 +862,14 @@ class clGraphiteDaemon(Daemon):
                                     lines.append("%s.sindexes.%s.%s.sync_state %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], index["sync_state"], now))
                                     lines.append("%s.sindexes.%s.%s.state %s %s" % (GRAPHITE_PATH_PREFIX, index["ns"], index["indexname"], index["state"], now))
     
-                                    r = -1
+                                    res = -1
                                     try:
-                                        r = self.client.info('sindex/' + index["ns"] + '/' + index["indexname"])
+                                        res = self.client.info('sindex/' + index["ns"] + '/' + index["indexname"])
                                     except:
                                         pass
-                                    if (-1 != r):
-                                        r = r.strip()
-                                        for string in r.split(';'):
+                                    if (-1 != res):
+                                        res = res.strip()
+                                        for string in res.split(';'):
                                             name, value = string.split('=')
                                             value = value.replace('false', "0")
                                             value = value.replace('true', "1")
@@ -831,7 +877,7 @@ class clGraphiteDaemon(Daemon):
                             msg.extend(lines)
                 except Exception as e:
                     print("Unable to parse sindex stats:")
-                    print(r)
+                    print(res)
                     print(e)
                     sys.stdout.flush()
 
@@ -873,9 +919,10 @@ class clGraphiteDaemon(Daemon):
 
                 for s_idx,s_sock in enumerate(s):
                     try:
-                        s_sock["s"].sendall(nmsg)
-                    except:
+                        s_sock["s"].sendall(nmsg.encode())
+                    except Exception as e:
                         print("ERROR: Unable to send to graphite server %s:%d, retrying connection.." %(s_sock["ip"],s_sock["port"]))
+                        print(e)
                         sys.stdout.flush()
                         s_sock["s"].close()
                         s[s_idx]["s"] = self.connect(s_sock["ip"],s_sock["port"])
