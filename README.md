@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The `asgraphite.py` script gets Aerospike metrics into [Graphite](https://graphiteapp.org/). It is compatible with Aerospike databbase 4.x and Aerospike database 5, last tested with database server versions 4.9.9 and 5.1.0.
+The `asgraphite.py` script gets Aerospike metrics into [Graphite](https://graphiteapp.org/). It is compatible with Aerospike database 4.x and Aerospike database 5, last tested with database server versions 4.9.9 and 5.1.0.
 
 ## Community Development
 
