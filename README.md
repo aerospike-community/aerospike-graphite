@@ -1,10 +1,15 @@
 # Aerospike Graphite
 
 ## Introduction
-This repositiory provides the asgraphite connector to connect Aerospike with Graphite.
 
-The asgraphite.py script simplifies graphite configurations for Aerospike clusters. 
-The goal is to reduce the complexity to 3 simple steps.
+The `asgraphite.py` script gets Aerospike metrics into [Graphite](https://graphiteapp.org/). It is compatible with Aerospike databbase 4.x and Aerospike database 5, last tested with database server versions 4.9.9 and 5.1.0.
+
+## Community Development
+
+This repository has been turned over to the community. If you wish to contribute code, go ahead and clone this repo, modify the code, and create a pull request.
+
+Active contributors can then ask to become maintainers for the repo. The wiki can similarly be modified by any code contributor who has been granted pull permissions.
+
 
 ### Requirements
 Additional python modules are required and installed using pip:
