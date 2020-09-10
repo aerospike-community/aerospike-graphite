@@ -4,6 +4,9 @@
 
 The `asgraphite.py` script gets Aerospike metrics into [Graphite](https://graphiteapp.org/). It is compatible with Aerospike database 4.x and Aerospike database 5, last tested with database server versions 4.9.9 and 5.1.0.
 
+## Aerospike Monitoring Stack
+For monitoring and alerting you should consider using the Prometheus and Grafana based [Aerospike Monitoring Stack](https://github.com/aerospike/aerospike-monitoring). This is the monitoring solution being developed by Aerospike.
+
 ## Community Development
 
 This repository has been turned over to the community. If you wish to contribute code, go ahead and clone this repo, modify the code, and create a pull request.
