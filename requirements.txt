@@ -1,2 +1,2 @@
 argparse
-aerospike==3.10.0
+aerospike==4.0.0
