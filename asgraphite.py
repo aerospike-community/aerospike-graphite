@@ -675,13 +675,13 @@ class clGraphiteDaemon(Daemon):
                             else:
                                 print("-latency argument is in an incorrect format. Running with argument \"latencies:\" instead.")
                                 r = self.client.info('latencies:')
-
                             if res == -1:
                                 res = r.strip()
                             else:
                                 res = res + ';' + r.strip()
                     else:
-                        if args.latency.startswith('latency:'):
+                        cmd = latencies_cmds[0]
+                        if cmd.startswith('latency:'):
                             # example response: "error-no-data-yet-or-back-too-small;{test}-write:19:11:03-GMT,ops/sec,>1ms,>8ms,>64ms;19:11:13,10.0,0.00,0.00,0.00;error-no-data-yet-or-back-too-small"
                             res = self.client.info(latencies_cmds[0])
                         else:
@@ -694,13 +694,16 @@ class clGraphiteDaemon(Daemon):
                         header = []
                         #print(res)
                         for histogram in res.split(';'):
+
                             if len(histogram) == 0 or histogram.startswith("error"):
                                 continue
+
                             if len(latency_type) == 0:
                                 # Base case
                                 latency_type, rest = histogram.split(':', 1)
                                 # handle dynamic naming
                                 match = re.match('{(.*)}',latency_type)
+
                                 if match:
                                     latency_type = re.sub('{.*}-','',latency_type)
                                     latency_type = match.groups()[0]+'.'+latency_type
@@ -709,6 +712,7 @@ class clGraphiteDaemon(Daemon):
                                 if use_latencies_cmd:
                                     # latencies command does not return error, just empty histogram
                                     if len(rest) == 0:
+                                        latency_type = ""
                                         continue
                                     # remove msec
                                     thresholds = rest.split(',')[1:]
@@ -719,6 +723,7 @@ class clGraphiteDaemon(Daemon):
                                         name = latency_type + '.over_' + str(2**i) + "ms"
                                         value = thresholds[i + 1]
                                         lines.append("%s.latency.%s %s %s" % (GRAPHITE_PATH_PREFIX , name, value, now))
+                                    latency_type = ""
                                     continue
            
                                 header = rest.split(',')
